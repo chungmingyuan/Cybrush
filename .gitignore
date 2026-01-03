@@ -1,0 +1,7 @@
+node_modules
+node_env
+dist
+.DS_Store
+*.command
+.firebase
+tsconfig.tsbuildinfo
