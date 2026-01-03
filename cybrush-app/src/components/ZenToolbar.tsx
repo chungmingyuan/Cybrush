@@ -25,8 +25,6 @@ const ZenToolbar: React.FC<ZenToolbarProps> = ({
         isDragging: false,
         startX: 0,
         startY: 0,
-        initialX: 0,
-        initialY: 0,
         moved: false
     })
     const toolbarRef = useRef<HTMLDivElement>(null)
@@ -88,8 +86,6 @@ const ZenToolbar: React.FC<ZenToolbarProps> = ({
             isDragging: true,
             startX: touch.clientX,
             startY: touch.clientY,
-            initialX: pos.x,
-            initialY: pos.y,
             moved: false
         }
 

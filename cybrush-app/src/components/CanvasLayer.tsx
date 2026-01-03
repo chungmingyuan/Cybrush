@@ -211,6 +211,7 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, 
         }
 
         const onTouchStart = (e: TouchEvent) => {
+            if (!e.touches[0]) return
             if (e.touches[0].touchType === 'direct') e.preventDefault()
 
             if (e.touches.length === 2) {
@@ -220,15 +221,16 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, 
                 redo(); isDrawingRef.current = false; return
             }
 
-            if (e.touches[0].touchType !== 'stylus') return
+            if (!e.touches[0] || e.touches[0].touchType !== 'stylus') return
             e.preventDefault()
 
             saveHistory()
             isDrawingRef.current = true
             const touch = e.touches[0]
+            if (!touch) return
             if (!rectRef.current) rectRef.current = canvas.getBoundingClientRect()
-            const x = touch.clientX - rectRef.current!.left
-            const y = touch.clientY - rectRef.current!.top
+            const x = touch.clientX - (rectRef.current?.left || 0)
+            const y = touch.clientY - (rectRef.current?.top || 0)
             lastXRef.current = x; lastYRef.current = y
 
             const p = Math.pow((touch as any).force || 0.4, 1.3)
@@ -251,11 +253,12 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, 
         }
 
         const onTouchMove = (e: TouchEvent) => {
-            if (!isDrawingRef.current || e.touches[0].touchType !== 'stylus') return
+            if (!isDrawingRef.current || !e.touches[0] || e.touches[0].touchType !== 'stylus') return
             e.preventDefault()
             const touch = e.touches[0]
-            const x = touch.clientX - rectRef.current!.left
-            const y = touch.clientY - rectRef.current!.top
+            if (!touch) return
+            const x = touch.clientX - (rectRef.current?.left || 0)
+            const y = touch.clientY - (rectRef.current?.top || 0)
             drawSegment(x, y, (touch as any).force)
         }
 
