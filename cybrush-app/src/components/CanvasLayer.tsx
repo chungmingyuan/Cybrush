@@ -9,6 +9,8 @@ export interface CanvasRef {
     clear: () => void
 }
 
+const MAX_HISTORY = 30
+
 const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const ctxRef = useRef<CanvasRenderingContext2D | null>(null)
@@ -17,16 +19,78 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool }, ref) => {
     const rectRef = useRef<DOMRect | null>(null)
     const toolRef = useRef<Tool>(tool)
 
-    // Sync tool ref without re-triggering the main useEffect
+    // History System
+    const historyRef = useRef<HTMLCanvasElement[]>([])
+    const redoStackRef = useRef<HTMLCanvasElement[]>([])
+
     useEffect(() => {
         toolRef.current = tool
     }, [tool])
+
+    // LIGHTWEIGHT SNAPSHOT (GPU Side)
+    const saveHistory = () => {
+        const canvas = canvasRef.current
+        if (!canvas) return
+        const snapshot = document.createElement('canvas')
+        snapshot.width = canvas.width
+        snapshot.height = canvas.height
+        const sCtx = snapshot.getContext('2d')
+        if (sCtx) {
+            sCtx.drawImage(canvas, 0, 0)
+            historyRef.current.push(snapshot)
+            if (historyRef.current.length > MAX_HISTORY) historyRef.current.shift()
+            redoStackRef.current = [] // Clear redo on new action
+        }
+    }
+
+    const undo = () => {
+        const canvas = canvasRef.current
+        const ctx = ctxRef.current
+        if (!canvas || !ctx || historyRef.current.length === 0) return
+
+        // Save current to redo stack
+        const snapshot = document.createElement('canvas')
+        snapshot.width = canvas.width
+        snapshot.height = canvas.height
+        snapshot.getContext('2d')?.drawImage(canvas, 0, 0)
+        redoStackRef.current.push(snapshot)
+
+        const last = historyRef.current.pop()!
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+        // Draw back with identity transform to avoid scaling issues
+        const dpr = window.devicePixelRatio || 1
+        ctx.save()
+        ctx.setTransform(1, 0, 0, 1, 0, 0)
+        ctx.drawImage(last, 0, 0)
+        ctx.restore()
+    }
+
+    const redo = () => {
+        const canvas = canvasRef.current
+        const ctx = ctxRef.current
+        if (!canvas || !ctx || redoStackRef.current.length === 0) return
+
+        // Save current to history before redoing
+        const snapshot = document.createElement('canvas')
+        snapshot.width = canvas.width
+        snapshot.height = canvas.height
+        snapshot.getContext('2d')?.drawImage(canvas, 0, 0)
+        historyRef.current.push(snapshot)
+
+        const next = redoStackRef.current.pop()!
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+        ctx.save()
+        ctx.setTransform(1, 0, 0, 1, 0, 0)
+        ctx.drawImage(next, 0, 0)
+        ctx.restore()
+    }
 
     useImperativeHandle(ref, () => ({
         clear: () => {
             const canvas = canvasRef.current
             const ctx = ctxRef.current
             if (canvas && ctx) {
+                saveHistory() // Allow undoing a clear
                 ctx.clearRect(0, 0, canvas.width, canvas.height)
             }
         }
@@ -36,10 +100,7 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool }, ref) => {
         const canvas = canvasRef.current
         if (!canvas) return
 
-        const ctx = canvas.getContext('2d', {
-            desynchronized: true,
-            alpha: true
-        })
+        const ctx = canvas.getContext('2d', { desynchronized: true, alpha: true })
         if (!ctx) return
         ctxRef.current = ctx
 
@@ -48,19 +109,16 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool }, ref) => {
             const w = window.innerWidth
             const h = window.innerHeight
 
-            // 1. BACKUP existing content
             const temp = document.createElement('canvas')
             temp.width = canvas.width
             temp.height = canvas.height
             temp.getContext('2d')?.drawImage(canvas, 0, 0)
 
-            // 2. RESIZE
             canvas.width = w * dpr
             canvas.height = h * dpr
             canvas.style.width = `${w}px`
             canvas.style.height = `${h}px`
 
-            // 3. RESTORE
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
             ctx.lineCap = 'round'
             ctx.lineJoin = 'round'
@@ -107,7 +165,6 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool }, ref) => {
                 ctx.stroke()
                 ctx.globalCompositeOperation = 'source-over'
             } else {
-                // Connect segments more smoothly by drawing slightly overlapping ends
                 for (let i = 0; i < config.passes.length; i++) {
                     const pass = config.passes[i]
                     ctx.lineWidth = baseSize * pass.s
@@ -115,7 +172,6 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool }, ref) => {
                     ctx.stroke()
                 }
             }
-
             lastXRef.current = x
             lastYRef.current = y
         }
@@ -143,8 +199,25 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool }, ref) => {
         }
 
         const handleStart = (e: TouchEvent) => {
+            // DETECT GESTURES (Fingers)
+            if (e.touches.length === 2) {
+                e.preventDefault()
+                undo()
+                return
+            }
+            if (e.touches.length === 3) {
+                e.preventDefault()
+                redo()
+                return
+            }
+
+            // ONLY draw if it's a stylus (Apple Pencil)
             if (e.touches[0].touchType !== 'stylus') return
             e.preventDefault()
+
+            // Snapshot before action
+            saveHistory()
+
             const touch = e.touches[0]
             if (!rectRef.current) rectRef.current = canvas.getBoundingClientRect()
             const x = touch.clientX - rectRef.current.left
@@ -175,7 +248,7 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool }, ref) => {
             canvas.removeEventListener('touchmove', handleMove)
             window.removeEventListener('resize', resize)
         }
-    }, []) // EMPTY DEPENDENCY ARRAY - Never clear on re-render
+    }, [])
 
     return (
         <canvas
