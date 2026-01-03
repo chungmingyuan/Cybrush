@@ -171,7 +171,7 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, 
             rectRef.current = canvas.getBoundingClientRect()
         }
 
-        const getPasses = (tool: Tool, wet: number) => {
+        const getPasses = (_t: Tool, wet: number) => {
             const w = wet / 100
             return [
                 { s: 1 + 3.5 * w, a: 0.005 * w },
@@ -202,8 +202,10 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, 
                 ctx.globalCompositeOperation = 'source-over'
             } else {
                 for (let i = 0; i < passes.length; i++) {
-                    ctx.lineWidth = baseSize * passes[i].s
-                    ctx.strokeStyle = `rgba(${rgb}, ${passes[i].a})`
+                    const p = passes[i];
+                    if (!p) continue;
+                    ctx.lineWidth = baseSize * p.s
+                    ctx.strokeStyle = `rgba(${rgb}, ${p.a})`
                     ctx.stroke()
                 }
             }
@@ -212,7 +214,7 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, 
 
         const onTouchStart = (e: TouchEvent) => {
             if (!e.touches[0]) return
-            if (e.touches[0].touchType === 'direct') e.preventDefault()
+            if ((e.touches[0] as any).touchType === 'direct') e.preventDefault()
 
             if (e.touches.length === 2) {
                 undo(); isDrawingRef.current = false; return
@@ -221,7 +223,7 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, 
                 redo(); isDrawingRef.current = false; return
             }
 
-            if (!e.touches[0] || e.touches[0].touchType !== 'stylus') return
+            if (!e.touches[0] || (e.touches[0] as any).touchType !== 'stylus') return
             e.preventDefault()
 
             saveHistory()
@@ -244,16 +246,18 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, 
                 ctx.globalCompositeOperation = 'source-over'
             } else {
                 for (let i = 0; i < passes.length; i++) {
+                    const p = passes[i];
+                    if (!p) continue;
                     ctx.beginPath()
-                    ctx.fillStyle = `rgba(${rgb}, ${passes[i].a})`
-                    ctx.arc(x, y, baseSize * passes[i].s, 0, Math.PI * 2)
+                    ctx.fillStyle = `rgba(${rgb}, ${p.a})`
+                    ctx.arc(x, y, baseSize * p.s, 0, Math.PI * 2)
                     ctx.fill()
                 }
             }
         }
 
         const onTouchMove = (e: TouchEvent) => {
-            if (!isDrawingRef.current || !e.touches[0] || e.touches[0].touchType !== 'stylus') return
+            if (!isDrawingRef.current || !e.touches[0] || (e.touches[0] as any).touchType !== 'stylus') return
             e.preventDefault()
             const touch = e.touches[0]
             if (!touch) return

@@ -33,6 +33,7 @@ const ZenToolbar: React.FC<ZenToolbarProps> = ({
         const handleMove = (e: TouchEvent) => {
             if (!dragData.current.isDragging) return
             const touch = e.touches[0]
+            if (!touch) return
             const dx = touch.clientX - dragData.current.startX
             const dy = touch.clientY - dragData.current.startY
 
@@ -49,6 +50,7 @@ const ZenToolbar: React.FC<ZenToolbarProps> = ({
         const handleEnd = (e: TouchEvent) => {
             if (!dragData.current.isDragging) return
             const touch = e.changedTouches[0]
+            if (!touch) return
             const dx = touch.clientX - dragData.current.startX
             const dy = touch.clientY - dragData.current.startY
 
@@ -82,6 +84,7 @@ const ZenToolbar: React.FC<ZenToolbarProps> = ({
         if (target.closest('input, button:not(#indicator)')) return
 
         const touch = e.touches[0]
+        if (!touch) return
         dragData.current = {
             isDragging: true,
             startX: touch.clientX,
