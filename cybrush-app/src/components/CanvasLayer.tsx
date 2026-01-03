@@ -3,31 +3,38 @@ import { Tool } from './ZenToolbar'
 
 interface CanvasLayerProps {
     tool: Tool
+    brushSize: number
+    wetness: number
 }
 
 export interface CanvasRef {
     clear: () => void
+    download: () => void
 }
 
-const MAX_HISTORY = 30
+const MAX_HISTORY = 40
 
-const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool }, ref) => {
+const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, wetness }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const ctxRef = useRef<CanvasRenderingContext2D | null>(null)
     const lastXRef = useRef(0)
     const lastYRef = useRef(0)
     const rectRef = useRef<DOMRect | null>(null)
-    const toolRef = useRef<Tool>(tool)
 
-    // History System
-    const historyRef = useRef<HTMLCanvasElement[]>([])
-    const redoStackRef = useRef<HTMLCanvasElement[]>([])
+    const toolRef = useRef<Tool>(tool)
+    const sizeRef = useRef(brushSize)
+    const wetnessRef = useRef(wetness)
+    const isDrawingRef = useRef(false)
 
     useEffect(() => {
         toolRef.current = tool
-    }, [tool])
+        sizeRef.current = brushSize
+        wetnessRef.current = wetness
+    }, [tool, brushSize, wetness])
 
-    // LIGHTWEIGHT SNAPSHOT (GPU Side)
+    const historyRef = useRef<HTMLCanvasElement[]>([])
+    const redoStackRef = useRef<HTMLCanvasElement[]>([])
+
     const saveHistory = () => {
         const canvas = canvasRef.current
         if (!canvas) return
@@ -39,7 +46,7 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool }, ref) => {
             sCtx.drawImage(canvas, 0, 0)
             historyRef.current.push(snapshot)
             if (historyRef.current.length > MAX_HISTORY) historyRef.current.shift()
-            redoStackRef.current = [] // Clear redo on new action
+            redoStackRef.current = []
         }
     }
 
@@ -48,7 +55,6 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool }, ref) => {
         const ctx = ctxRef.current
         if (!canvas || !ctx || historyRef.current.length === 0) return
 
-        // Save current to redo stack
         const snapshot = document.createElement('canvas')
         snapshot.width = canvas.width
         snapshot.height = canvas.height
@@ -56,11 +62,9 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool }, ref) => {
         redoStackRef.current.push(snapshot)
 
         const last = historyRef.current.pop()!
-        ctx.clearRect(0, 0, canvas.width, canvas.height)
-        // Draw back with identity transform to avoid scaling issues
-        const dpr = window.devicePixelRatio || 1
         ctx.save()
         ctx.setTransform(1, 0, 0, 1, 0, 0)
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
         ctx.drawImage(last, 0, 0)
         ctx.restore()
     }
@@ -70,7 +74,6 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool }, ref) => {
         const ctx = ctxRef.current
         if (!canvas || !ctx || redoStackRef.current.length === 0) return
 
-        // Save current to history before redoing
         const snapshot = document.createElement('canvas')
         snapshot.width = canvas.width
         snapshot.height = canvas.height
@@ -78,9 +81,9 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool }, ref) => {
         historyRef.current.push(snapshot)
 
         const next = redoStackRef.current.pop()!
-        ctx.clearRect(0, 0, canvas.width, canvas.height)
         ctx.save()
         ctx.setTransform(1, 0, 0, 1, 0, 0)
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
         ctx.drawImage(next, 0, 0)
         ctx.restore()
     }
@@ -88,10 +91,60 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool }, ref) => {
     useImperativeHandle(ref, () => ({
         clear: () => {
             const canvas = canvasRef.current
-            const ctx = ctxRef.current
-            if (canvas && ctx) {
-                saveHistory() // Allow undoing a clear
-                ctx.clearRect(0, 0, canvas.width, canvas.height)
+            if (canvas && ctxRef.current) {
+                saveHistory()
+                ctxRef.current.clearRect(0, 0, canvas.width, canvas.height)
+            }
+        },
+        download: async () => {
+            const canvas = canvasRef.current
+            if (!canvas) return
+
+            const final = document.createElement('canvas')
+            final.width = canvas.width
+            final.height = canvas.height
+            const fCtx = final.getContext('2d')
+            if (!fCtx) return
+
+            fCtx.fillStyle = '#fdfcf0'
+            fCtx.fillRect(0, 0, final.width, final.height)
+            fCtx.drawImage(canvas, 0, 0)
+
+            const w = final.width / (window.devicePixelRatio || 1)
+            const h = final.height / (window.devicePixelRatio || 1)
+            fCtx.save()
+            const dpr = window.devicePixelRatio || 1
+            fCtx.scale(dpr, dpr)
+            fCtx.font = 'bold 16px "Inter", sans-serif'
+            fCtx.fillStyle = 'rgba(0, 0, 0, 0.4)'
+            fCtx.textAlign = 'right'
+            fCtx.fillText('CyBrush 2026', w - 30, h - 30)
+            fCtx.restore()
+
+            const fileName = `cybrush-${new Date().getTime()}.png`
+
+            // --- NATIVE SAVE TO FILE DIALOG (iPad/Safari) ---
+            try {
+                final.toBlob(async (blob) => {
+                    if (!blob) return
+                    const file = new File([blob], fileName, { type: 'image/png' })
+
+                    // Use navigator.share if available (Triggers native Save to Files/Photos on iPad)
+                    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                            files: [file],
+                            title: 'CyBrush Masterpiece',
+                        })
+                    } else {
+                        // Fallback for browsers that don't support sharing files
+                        const link = document.createElement('a')
+                        link.download = fileName
+                        link.href = URL.createObjectURL(blob)
+                        link.click()
+                    }
+                }, 'image/png')
+            } catch (err) {
+                console.error('Save failed:', err)
             }
         }
     }))
@@ -99,60 +152,45 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool }, ref) => {
     useEffect(() => {
         const canvas = canvasRef.current
         if (!canvas) return
-
         const ctx = canvas.getContext('2d', { desynchronized: true, alpha: true })
         if (!ctx) return
         ctxRef.current = ctx
 
         const resize = () => {
             const dpr = window.devicePixelRatio || 1
-            const w = window.innerWidth
-            const h = window.innerHeight
-
+            const w = window.innerWidth, h = window.innerHeight
             const temp = document.createElement('canvas')
-            temp.width = canvas.width
-            temp.height = canvas.height
+            temp.width = canvas.width; temp.height = canvas.height
             temp.getContext('2d')?.drawImage(canvas, 0, 0)
 
-            canvas.width = w * dpr
-            canvas.height = h * dpr
-            canvas.style.width = `${w}px`
-            canvas.style.height = `${h}px`
-
+            canvas.width = w * dpr; canvas.height = h * dpr
+            canvas.style.width = `${w}px`; canvas.style.height = `${h}px`
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-            ctx.lineCap = 'round'
-            ctx.lineJoin = 'round'
+            ctx.lineCap = 'round'; ctx.lineJoin = 'round'
             ctx.drawImage(temp, 0, 0, w, h)
-
             rectRef.current = canvas.getBoundingClientRect()
         }
 
-        const getToolConfig = (currentTool: Tool) => {
-            if (currentTool === 'RED') {
-                return {
-                    rgb: '185, 28, 28',
-                    passes: [
-                        { s: 3.5, a: 0.01 }, { s: 2.5, a: 0.03 },
-                        { s: 1.8, a: 0.08 }, { s: 1.2, a: 0.20 },
-                        { s: 0.8, a: 0.45 }, { s: 0.5, a: 0.75 }
-                    ]
-                }
-            }
-            return {
-                rgb: '0, 0, 0',
-                passes: [
-                    { s: 4.8, a: 0.003 }, { s: 4.2, a: 0.005 }, { s: 3.6, a: 0.008 },
-                    { s: 3.1, a: 0.015 }, { s: 2.6, a: 0.025 }, { s: 2.1, a: 0.04 },
-                    { s: 1.7, a: 0.07 }, { s: 1.4, a: 0.12 }, { s: 1.1, a: 0.20 },
-                    { s: 0.8, a: 0.35 }, { s: 0.5, a: 0.60 }, { s: 0.2, a: 0.90 }
-                ]
-            }
+        const getPasses = (tool: Tool, wet: number) => {
+            const w = wet / 100
+            return [
+                { s: 1 + 3.5 * w, a: 0.005 * w },
+                { s: 1 + 2.2 * w, a: 0.015 * w },
+                { s: 1 + 1.4 * w, a: 0.04 * w },
+                { s: 1 + 0.8 * w, a: 0.08 * w },
+                { s: 1.0, a: 0.20 },
+                { s: 0.8, a: 0.35 },
+                { s: 0.6, a: 0.55 },
+                { s: 0.4, a: 0.75 },
+                { s: 0.2, a: 0.95 }
+            ].filter(p => p.a > 0)
         }
 
         const drawSegment = (x: number, y: number, force: number) => {
-            const p = Math.pow(force || 0.4, 1.4)
-            const baseSize = p * 44
-            const config = getToolConfig(toolRef.current)
+            const p = Math.pow(force || 0.4, 1.3)
+            const baseSize = p * sizeRef.current
+            const rgb = toolRef.current === 'RED' ? '185, 28, 28' : '0, 0, 0'
+            const passes = getPasses(toolRef.current, wetnessRef.current)
 
             ctx.beginPath()
             ctx.moveTo(lastXRef.current, lastYRef.current)
@@ -160,109 +198,101 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool }, ref) => {
 
             if (toolRef.current === 'ERA') {
                 ctx.globalCompositeOperation = 'destination-out'
-                ctx.lineWidth = baseSize * 1.5
-                ctx.strokeStyle = 'black'
-                ctx.stroke()
+                ctx.lineWidth = baseSize * 1.5; ctx.stroke()
                 ctx.globalCompositeOperation = 'source-over'
             } else {
-                for (let i = 0; i < config.passes.length; i++) {
-                    const pass = config.passes[i]
-                    ctx.lineWidth = baseSize * pass.s
-                    ctx.strokeStyle = `rgba(${config.rgb}, ${pass.a})`
+                for (let i = 0; i < passes.length; i++) {
+                    ctx.lineWidth = baseSize * passes[i].s
+                    ctx.strokeStyle = `rgba(${rgb}, ${passes[i].a})`
                     ctx.stroke()
                 }
             }
-            lastXRef.current = x
-            lastYRef.current = y
+            lastXRef.current = x; lastYRef.current = y
         }
 
-        const drawDot = (x: number, y: number, force: number) => {
-            const p = Math.pow(force || 0.4, 1.4)
-            const baseSize = p * 22
-            const config = getToolConfig(toolRef.current)
+        const onTouchStart = (e: TouchEvent) => {
+            if (e.touches[0].touchType === 'direct') e.preventDefault()
+
+            if (e.touches.length === 2) {
+                undo(); isDrawingRef.current = false; return
+            }
+            if (e.touches.length === 3) {
+                redo(); isDrawingRef.current = false; return
+            }
+
+            if (e.touches[0].touchType !== 'stylus') return
+            e.preventDefault()
+
+            saveHistory()
+            isDrawingRef.current = true
+            const touch = e.touches[0]
+            if (!rectRef.current) rectRef.current = canvas.getBoundingClientRect()
+            const x = touch.clientX - rectRef.current!.left
+            const y = touch.clientY - rectRef.current!.top
+            lastXRef.current = x; lastYRef.current = y
+
+            const p = Math.pow((touch as any).force || 0.4, 1.3)
+            const baseSize = (p * sizeRef.current) / 2
+            const rgb = toolRef.current === 'RED' ? '185, 28, 28' : '0, 0, 0'
+            const passes = getPasses(toolRef.current, wetnessRef.current)
 
             if (toolRef.current === 'ERA') {
                 ctx.globalCompositeOperation = 'destination-out'
-                ctx.beginPath()
-                ctx.arc(x, y, baseSize * 1.5, 0, Math.PI * 2)
-                ctx.fill()
+                ctx.beginPath(); ctx.arc(x, y, baseSize * 1.5, 0, Math.PI * 2); ctx.fill()
                 ctx.globalCompositeOperation = 'source-over'
             } else {
-                for (let i = 0; i < config.passes.length; i++) {
-                    const pass = config.passes[i]
+                for (let i = 0; i < passes.length; i++) {
                     ctx.beginPath()
-                    ctx.fillStyle = `rgba(${config.rgb}, ${pass.a})`
-                    ctx.arc(x, y, (baseSize * pass.s) / 2, 0, Math.PI * 2)
+                    ctx.fillStyle = `rgba(${rgb}, ${passes[i].a})`
+                    ctx.arc(x, y, baseSize * passes[i].s, 0, Math.PI * 2)
                     ctx.fill()
                 }
             }
         }
 
-        const handleStart = (e: TouchEvent) => {
-            // DETECT GESTURES (Fingers)
-            if (e.touches.length === 2) {
-                e.preventDefault()
-                undo()
-                return
-            }
-            if (e.touches.length === 3) {
-                e.preventDefault()
-                redo()
-                return
-            }
-
-            // ONLY draw if it's a stylus (Apple Pencil)
-            if (e.touches[0].touchType !== 'stylus') return
-            e.preventDefault()
-
-            // Snapshot before action
-            saveHistory()
-
-            const touch = e.touches[0]
-            if (!rectRef.current) rectRef.current = canvas.getBoundingClientRect()
-            const x = touch.clientX - rectRef.current.left
-            const y = touch.clientY - rectRef.current.top
-            lastXRef.current = x
-            lastYRef.current = y
-            drawDot(x, y, (touch as any).force)
-        }
-
-        const handleMove = (e: TouchEvent) => {
-            if (e.touches[0].touchType !== 'stylus') return
+        const onTouchMove = (e: TouchEvent) => {
+            if (!isDrawingRef.current || e.touches[0].touchType !== 'stylus') return
             e.preventDefault()
             const touch = e.touches[0]
-            if (!rectRef.current) rectRef.current = canvas.getBoundingClientRect()
-            const x = touch.clientX - rectRef.current.left
-            const y = touch.clientY - rectRef.current.top
+            const x = touch.clientX - rectRef.current!.left
+            const y = touch.clientY - rectRef.current!.top
             drawSegment(x, y, (touch as any).force)
         }
 
-        canvas.addEventListener('touchstart', handleStart, { passive: false })
-        canvas.addEventListener('touchmove', handleMove, { passive: false })
+        const onTouchEnd = () => { isDrawingRef.current = false }
 
-        window.addEventListener('resize', resize)
-        resize()
+        canvas.addEventListener('touchstart', onTouchStart, { passive: false })
+        canvas.addEventListener('touchmove', onTouchMove, { passive: false })
+        canvas.addEventListener('touchend', onTouchEnd)
+        window.addEventListener('resize', resize); resize()
 
         return () => {
-            canvas.removeEventListener('touchstart', handleStart)
-            canvas.removeEventListener('touchmove', handleMove)
+            canvas.removeEventListener('touchstart', onTouchStart)
+            canvas.removeEventListener('touchmove', onTouchMove)
+            canvas.removeEventListener('touchend', onTouchEnd)
             window.removeEventListener('resize', resize)
         }
     }, [])
 
     return (
-        <canvas
-            ref={canvasRef}
-            style={{
+        <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+            <canvas ref={canvasRef} style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', touchAction: 'none', zIndex: 1 }} />
+            <div style={{
                 position: 'fixed',
-                top: 0,
-                left: 0,
-                width: '100vw',
-                height: '100vh',
-                touchAction: 'none',
-                zIndex: 1
-            }}
-        />
+                bottom: '30px',
+                right: '30px',
+                fontFamily: '"Inter", sans-serif',
+                fontSize: '18px',
+                fontWeight: 'bold',
+                color: 'rgba(0, 0, 0, 0.4)',
+                userSelect: 'none',
+                pointerEvents: 'none',
+                zIndex: 2,
+                fontStyle: 'italic'
+            }}>
+                CyBrush 2026
+            </div>
+        </div>
     )
 })
 

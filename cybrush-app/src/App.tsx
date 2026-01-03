@@ -4,10 +4,16 @@ import ZenToolbar, { Tool } from './components/ZenToolbar'
 
 function App() {
     const [currentTool, setCurrentTool] = useState<Tool>('INK')
+    const [brushSize, setBrushSize] = useState(40)
+    const [wetness, setWetness] = useState(60)
     const canvasRef = useRef<CanvasRef>(null)
 
     const handleClear = () => {
         canvasRef.current?.clear()
+    }
+
+    const handleDownload = () => {
+        canvasRef.current?.download()
     }
 
     return (
@@ -15,11 +21,18 @@ function App() {
             <CanvasLayer
                 ref={canvasRef}
                 tool={currentTool}
+                brushSize={brushSize}
+                wetness={wetness}
             />
             <ZenToolbar
                 currentTool={currentTool}
                 onToolChange={setCurrentTool}
                 onClear={handleClear}
+                onDownload={handleDownload}
+                brushSize={brushSize}
+                onSizeChange={setBrushSize}
+                wetness={wetness}
+                onWetnessChange={setWetness}
             />
         </div>
     )
