@@ -1,10 +1,11 @@
-import { useEffect, useRef, useImperativeHandle, forwardRef } from 'react'
+import { useEffect, useRef, useImperativeHandle, forwardRef, useCallback } from 'react'
 import { Tool } from './ZenToolbar'
 
 interface CanvasLayerProps {
     tool: Tool
     brushSize: number
     wetness: number
+    brushColor: string
 }
 
 export interface CanvasRef {
@@ -14,7 +15,15 @@ export interface CanvasRef {
 
 const MAX_HISTORY = 40
 
-const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, wetness }, ref) => {
+const hexToRgb = (hex: string) => {
+    if (!hex.startsWith('#')) return hex
+    const r = parseInt(hex.slice(1, 3), 16)
+    const g = parseInt(hex.slice(3, 5), 16)
+    const b = parseInt(hex.slice(5, 7), 16)
+    return `${r}, ${g}, ${b}`
+}
+
+const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, wetness, brushColor }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const ctxRef = useRef<CanvasRenderingContext2D | null>(null)
     const lastXRef = useRef(0)
@@ -24,18 +33,20 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, 
     const toolRef = useRef<Tool>(tool)
     const sizeRef = useRef(brushSize)
     const wetnessRef = useRef(wetness)
+    const colorRef = useRef(brushColor)
     const isDrawingRef = useRef(false)
 
     useEffect(() => {
         toolRef.current = tool
         sizeRef.current = brushSize
         wetnessRef.current = wetness
-    }, [tool, brushSize, wetness])
+        colorRef.current = brushColor
+    }, [tool, brushSize, wetness, brushColor])
 
     const historyRef = useRef<HTMLCanvasElement[]>([])
     const redoStackRef = useRef<HTMLCanvasElement[]>([])
 
-    const saveHistory = () => {
+    const saveHistory = useCallback(() => {
         const canvas = canvasRef.current
         if (!canvas) return
         const snapshot = document.createElement('canvas')
@@ -48,9 +59,9 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, 
             if (historyRef.current.length > MAX_HISTORY) historyRef.current.shift()
             redoStackRef.current = []
         }
-    }
+    }, [])
 
-    const undo = () => {
+    const undo = useCallback(() => {
         const canvas = canvasRef.current
         const ctx = ctxRef.current
         if (!canvas || !ctx || historyRef.current.length === 0) return
@@ -67,9 +78,9 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, 
         ctx.clearRect(0, 0, canvas.width, canvas.height)
         ctx.drawImage(last, 0, 0)
         ctx.restore()
-    }
+    }, [])
 
-    const redo = () => {
+    const redo = useCallback(() => {
         const canvas = canvasRef.current
         const ctx = ctxRef.current
         if (!canvas || !ctx || redoStackRef.current.length === 0) return
@@ -86,7 +97,7 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, 
         ctx.clearRect(0, 0, canvas.width, canvas.height)
         ctx.drawImage(next, 0, 0)
         ctx.restore()
-    }
+    }, [])
 
     useImperativeHandle(ref, () => ({
         clear: () => {
@@ -189,7 +200,7 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, 
         const drawSegment = (x: number, y: number, force: number) => {
             const p = Math.pow(force || 0.4, 1.3)
             const baseSize = p * sizeRef.current
-            const rgb = toolRef.current === 'RED' ? '185, 28, 28' : '0, 0, 0'
+            const rgb = colorRef.current.startsWith('#') ? hexToRgb(colorRef.current) : colorRef.current
             const passes = getPasses(toolRef.current, wetnessRef.current)
 
             ctx.beginPath()
@@ -201,11 +212,12 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, 
                 ctx.lineWidth = baseSize * 1.5; ctx.stroke()
                 ctx.globalCompositeOperation = 'source-over'
             } else {
+                ctx.globalCompositeOperation = 'source-over'
                 for (let i = 0; i < passes.length; i++) {
-                    const p = passes[i];
-                    if (!p) continue;
-                    ctx.lineWidth = baseSize * p.s
-                    ctx.strokeStyle = `rgba(${rgb}, ${p.a})`
+                    const pass = passes[i];
+                    if (!pass) continue;
+                    ctx.lineWidth = baseSize * pass.s
+                    ctx.strokeStyle = `rgba(${rgb}, ${pass.a})`
                     ctx.stroke()
                 }
             }
@@ -237,7 +249,7 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, 
 
             const p = Math.pow((touch as any).force || 0.4, 1.3)
             const baseSize = (p * sizeRef.current) / 2
-            const rgb = toolRef.current === 'RED' ? '185, 28, 28' : '0, 0, 0'
+            const rgb = colorRef.current.startsWith('#') ? hexToRgb(colorRef.current) : colorRef.current
             const passes = getPasses(toolRef.current, wetnessRef.current)
 
             if (toolRef.current === 'ERA') {
@@ -279,7 +291,7 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, 
             canvas.removeEventListener('touchend', onTouchEnd)
             window.removeEventListener('resize', resize)
         }
-    }, [])
+    }, [undo, redo, saveHistory])
 
     return (
         <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>

@@ -17,9 +17,5 @@ body,
 }
 
 body {
-    background-color: #fdfdfa;
-    background-image: url('/rice-paper.png');
-    background-size: cover;
-    background-repeat: no-repeat;
-    background-position: center;
+    background-color: #111;
 }
