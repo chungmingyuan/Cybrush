@@ -98,17 +98,15 @@ function App() {
 
     return (
         <div style={{
-            width: '100%',
-            height: '100%',
+            width: '100vw',
+            height: '100vh',
             position: 'relative',
             overflow: 'hidden',
-            backgroundColor: selectedPaper.color,
-            backgroundImage: selectedPaper.url ? `url(${selectedPaper.url})` : 'none',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center'
+            backgroundColor: '#111' // "The Desk" background
         }}>
             <CanvasLayer
                 ref={canvasRef}
+                paper={selectedPaper}
                 tool={currentTool}
                 brushSize={brushSize}
                 wetness={wetness}
