@@ -1,15 +1,44 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import CanvasLayer, { CanvasRef } from './components/CanvasLayer'
 import ZenToolbar, { Tool } from './components/ZenToolbar'
-import PaperSelector, { PaperType } from './components/PaperSelector'
+import PaperSelector, { PaperType, PAPERS } from './components/PaperSelector'
 
 function App() {
-    const [selectedPaper, setSelectedPaper] = useState<PaperType | null>(null)
+    const [selectedPaper, setSelectedPaper] = useState<PaperType | null>(() => {
+        const savedPaperId = localStorage.getItem('cybrush_paper_id')
+        if (savedPaperId) {
+            return PAPERS.find(p => p.id === savedPaperId) || null
+        }
+        return null
+    })
+    const [showSelector, setShowSelector] = useState(!selectedPaper)
+    const [pendingPaper, setPendingPaper] = useState<PaperType | null>(null)
     const [currentTool, setCurrentTool] = useState<Tool>('INK')
     const [brushSize, setBrushSize] = useState(40)
     const [brushColor, setBrushColor] = useState('#111111')
     const [wetness, setWetness] = useState(60)
     const canvasRef = useRef<CanvasRef>(null)
+
+    useEffect(() => {
+        if (selectedPaper) {
+            localStorage.setItem('cybrush_paper_id', selectedPaper.id)
+            // Small delay to ensure canvas is ready
+            setTimeout(() => {
+                canvasRef.current?.loadState()
+            }, 100)
+        } else {
+            localStorage.removeItem('cybrush_paper_id')
+        }
+    }, [selectedPaper])
+
+    const isDarkPaper = selectedPaper ? (() => {
+        const hex = selectedPaper.color.replace('#', '')
+        const r = parseInt(hex.substring(0, 2), 16)
+        const g = parseInt(hex.substring(2, 4), 16)
+        const b = parseInt(hex.substring(4, 6), 16)
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000
+        return brightness < 128
+    })() : false
 
     const handleClear = () => {
         canvasRef.current?.clear()
@@ -19,8 +48,52 @@ function App() {
         canvasRef.current?.download()
     }
 
-    if (!selectedPaper) {
-        return <PaperSelector onSelect={setSelectedPaper} />
+    const handleReset = () => {
+        setShowSelector(true)
+    }
+
+    const handlePaperSelection = (paper: PaperType) => {
+        const hasWork = localStorage.getItem('cybrush_autosave')
+        if (hasWork) {
+            // Instead of native confirm, we set pending state to show our custom modal
+            setPendingPaper(paper)
+        } else {
+            setSelectedPaper(paper)
+            setShowSelector(false)
+        }
+    }
+
+    const confirmSelection = (shouldClear: boolean) => {
+        if (pendingPaper) {
+            if (shouldClear) {
+                localStorage.removeItem('cybrush_autosave')
+                canvasRef.current?.clear()
+            }
+            setSelectedPaper(pendingPaper)
+            setPendingPaper(null)
+            setShowSelector(false)
+        }
+    }
+
+    if (showSelector || !selectedPaper) {
+        return (
+            <>
+                <PaperSelector
+                    onSelect={handlePaperSelection}
+                    onCancel={selectedPaper ? () => setShowSelector(false) : undefined}
+                />
+                {pendingPaper && (
+                    <ZenModal
+                        title="Canvas Setup"
+                        message="Would you like to start with a fresh canvas or keep your current drawing on the new paper?"
+                        onConfirm={() => confirmSelection(true)}
+                        onCancel={() => confirmSelection(false)}
+                        confirmLabel="Clear & Start Fresh"
+                        cancelLabel="Keep Current Strokes"
+                    />
+                )}
+            </>
+        )
     }
 
     return (
@@ -46,15 +119,68 @@ function App() {
                 onToolChange={setCurrentTool}
                 onClear={handleClear}
                 onDownload={handleDownload}
+                onReset={handleReset}
                 brushSize={brushSize}
                 onSizeChange={setBrushSize}
                 wetness={wetness}
                 onWetnessChange={setWetness}
                 brushColor={brushColor}
                 onColorChange={setBrushColor}
+                isDark={isDarkPaper}
             />
         </div>
     )
 }
+
+const ZenModal: React.FC<{
+    title: string,
+    message: string,
+    onConfirm: () => void,
+    onCancel: () => void,
+    confirmLabel: string,
+    cancelLabel: string
+}> = ({ title, message, onConfirm, onCancel, confirmLabel, cancelLabel }) => (
+    <div style={{
+        position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+        backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 2000,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)'
+    }}>
+        <div style={{
+            backgroundColor: '#1a1a1a', borderRadius: '24px', padding: '40px',
+            maxWidth: '400px', width: '90%', textAlign: 'center',
+            border: '1px solid rgba(255,255,255,0.1)',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+            fontFamily: '"Inter", sans-serif'
+        }}>
+            <h2 style={{ color: 'white', marginBottom: '16px', fontWeight: 500 }}>{title}</h2>
+            <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '32px', lineHeight: '1.6' }}>{message}</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <button
+                    onClick={onConfirm}
+                    style={{
+                        padding: '16px', borderRadius: '12px', border: 'none',
+                        backgroundColor: '#aa1111', color: 'white', fontWeight: 'bold',
+                        cursor: 'pointer', transition: 'transform 0.2s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+                    onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                >
+                    {confirmLabel}
+                </button>
+                <button
+                    onClick={onCancel}
+                    style={{
+                        padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.2)',
+                        backgroundColor: 'transparent', color: 'white', fontWeight: 500,
+                        cursor: 'pointer'
+                    }}
+                >
+                    {cancelLabel}
+                </button>
+            </div>
+        </div>
+    </div>
+)
 
 export default App

@@ -11,9 +11,12 @@ interface CanvasLayerProps {
 export interface CanvasRef {
     clear: () => void
     download: () => void
+    saveState: () => void
+    loadState: () => void
 }
 
 const MAX_HISTORY = 40
+const STORAGE_KEY = 'cybrush_autosave'
 
 const hexToRgb = (hex: string) => {
     if (!hex.startsWith('#')) return hex
@@ -99,12 +102,37 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, 
         ctx.restore()
     }, [])
 
+    const saveToStorage = useCallback(() => {
+        const canvas = canvasRef.current
+        if (!canvas) return
+        localStorage.setItem(STORAGE_KEY, canvas.toDataURL('image/png'))
+    }, [])
+
     useImperativeHandle(ref, () => ({
         clear: () => {
             const canvas = canvasRef.current
             if (canvas && ctxRef.current) {
                 saveHistory()
                 ctxRef.current.clearRect(0, 0, canvas.width, canvas.height)
+                localStorage.removeItem(STORAGE_KEY)
+            }
+        },
+        saveState: () => saveToStorage(),
+        loadState: () => {
+            const data = localStorage.getItem(STORAGE_KEY)
+            const canvas = canvasRef.current
+            if (data && ctxRef.current && canvas) {
+                const img = new Image()
+                img.onload = () => {
+                    const ctx = ctxRef.current
+                    if (!ctx) return
+                    ctx.save()
+                    ctx.setTransform(1, 0, 0, 1, 0, 0) // Reset to identity for direct pixel copy
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height) // Draw at buffer resolution
+                    ctx.restore()
+                    saveHistory()
+                }
+                img.src = data
             }
         },
         download: async () => {
@@ -256,6 +284,33 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, 
                 ctx.globalCompositeOperation = 'destination-out'
                 ctx.beginPath(); ctx.arc(x, y, baseSize * 1.5, 0, Math.PI * 2); ctx.fill()
                 ctx.globalCompositeOperation = 'source-over'
+            } else if (toolRef.current === 'SEAL') {
+                const sealSize = 60
+                ctx.save()
+                ctx.translate(x, y)
+                ctx.rotate(-0.05) // Slight organic tilt
+
+                // Red Box
+                ctx.fillStyle = '#aa1111'
+                ctx.fillRect(-sealSize / 2, -sealSize / 2, sealSize, sealSize)
+
+                // "Distressed" texture look (subtle eraser marks)
+                ctx.globalCompositeOperation = 'destination-out'
+                for (let i = 0; i < 5; i++) {
+                    ctx.beginPath()
+                    ctx.arc((Math.random() - 0.5) * sealSize, (Math.random() - 0.5) * sealSize, 1 + Math.random() * 2, 0, Math.PI * 2)
+                    ctx.fill()
+                }
+                ctx.globalCompositeOperation = 'source-over'
+
+                // Text
+                ctx.font = 'bold 24px "Inter", serif'
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
+                ctx.textAlign = 'center'
+                ctx.textBaseline = 'middle'
+                ctx.fillText('CY', 0, 0)
+                ctx.restore()
+                saveToStorage()
             } else {
                 for (let i = 0; i < passes.length; i++) {
                     const p = passes[i];
@@ -269,7 +324,7 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, 
         }
 
         const onTouchMove = (e: TouchEvent) => {
-            if (!isDrawingRef.current || !e.touches[0] || (e.touches[0] as any).touchType !== 'stylus') return
+            if (!isDrawingRef.current || toolRef.current === 'SEAL' || !e.touches[0] || (e.touches[0] as any).touchType !== 'stylus') return
             e.preventDefault()
             const touch = e.touches[0]
             if (!touch) return
@@ -278,7 +333,13 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ tool, brushSize, 
             drawSegment(x, y, (touch as any).force)
         }
 
-        const onTouchEnd = () => { isDrawingRef.current = false }
+        const onTouchEnd = () => {
+            if (isDrawingRef.current) {
+                isDrawingRef.current = false
+                saveToStorage()
+            }
+        }
+
 
         canvas.addEventListener('touchstart', onTouchStart, { passive: false })
         canvas.addEventListener('touchmove', onTouchMove, { passive: false })

@@ -18,9 +18,10 @@ export const PAPERS: PaperType[] = [
 
 interface PaperSelectorProps {
     onSelect: (paper: PaperType) => void
+    onCancel?: () => void
 }
 
-const PaperSelector: React.FC<PaperSelectorProps> = ({ onSelect }) => {
+const PaperSelector: React.FC<PaperSelectorProps> = ({ onSelect, onCancel }) => {
     return (
         <div style={{
             position: 'fixed',
@@ -40,6 +41,40 @@ const PaperSelector: React.FC<PaperSelectorProps> = ({ onSelect }) => {
             padding: '40px 20px'
         }}>
             <h1 style={{ marginBottom: '40px', fontWeight: 300, letterSpacing: '2px', fontSize: '2rem' }}>Select Your Canvas</h1>
+
+            {onCancel && (
+                <button
+                    onClick={onCancel}
+                    style={{
+                        position: 'absolute',
+                        top: '40px',
+                        left: '40px',
+                        backgroundColor: 'transparent',
+                        border: '1px solid rgba(255,255,255,0.3)',
+                        color: 'white',
+                        padding: '10px 20px',
+                        borderRadius: '25px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        fontSize: '14px',
+                        fontWeight: 300,
+                        transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'
+                        e.currentTarget.style.borderColor = 'white'
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent'
+                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'
+                    }}
+                >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+                    Return to Canvas
+                </button>
+            )}
 
             <div style={{
                 display: 'grid',
