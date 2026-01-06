@@ -329,9 +329,9 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
     }, [undo, redo, saveHistory, resetView])
 
     return (
-        <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+        <div style={{ position: 'relative', width: '100dvw', height: '100dvh', overflow: 'hidden' }}>
             <div style={{
-                position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+                position: 'fixed', top: 0, left: 0, width: '100dvw', height: '100dvh',
                 transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
                 transformOrigin: '0 0', willChange: 'transform', zIndex: 1,
                 backgroundColor: paper.color, backgroundImage: paper.url ? `url(${paper.url})` : 'none',
