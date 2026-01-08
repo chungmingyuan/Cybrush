@@ -112,6 +112,20 @@ function App() {
                 wetness={wetness}
                 brushColor={brushColor}
             />
+            {/* Watermark Overlay - Visible in UI, not in download */}
+            <div style={{
+                position: 'absolute',
+                bottom: '30px',
+                right: '30px',
+                pointerEvents: 'none',
+                fontFamily: '"Inter", sans-serif',
+                fontWeight: 'bold',
+                fontSize: '16px',
+                color: isDarkPaper ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)',
+                zIndex: 900 // Below toolbar (1000) but above canvas
+            }}>
+                CyBrush 2026
+            </div>
             <ZenToolbar
                 currentTool={currentTool}
                 onToolChange={setCurrentTool}

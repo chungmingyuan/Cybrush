@@ -244,7 +244,7 @@ const ZenToolbar: React.FC<ZenToolbarProps> = ({
                         <div style={{ width: '1px', height: '24px', backgroundColor: themeBorder, flexShrink: 0 }} />
                         <div style={{ display: 'flex', gap: isNarrow ? '2px' : '6px', alignItems: 'center', flexShrink: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '2px', position: 'relative' }}>
-                                <SizeRangeIcon color={themeIconColor} />
+                                <BrushSizeIcon color={themeIconColor} />
                                 <input type="range" min="5" max="150" value={brushSize} onChange={e => onSizeChange(parseInt(e.target.value))} style={sldStyle(sldWidthSize, isDark)} />
                                 {showLabels && <div style={{ ...labelStyle(isDark), left: '50%', transform: 'translateX(-50%)' }}>Size</div>}
                             </div>
@@ -265,7 +265,7 @@ const ZenToolbar: React.FC<ZenToolbarProps> = ({
                                 {showLabels && <div style={{ ...labelStyle(isDark), left: '50%', transform: 'translateX(-50%)' }}>Clear</div>}
                             </button>
                             <button onClick={onReset} style={{ ...rBtnStyle, position: 'relative' }} title="Change Paper">
-                                <ActionIcon d="M11 15l-3-3 3-3m-8 3h12a5 5 0 010 10" stroke={themeIconColor} />
+                                <PaperIcon stroke={themeIconColor} />
                                 {showLabels && <div style={{ ...labelStyle(isDark), left: '50%', transform: 'translateX(-50%)' }}>Paper</div>}
                             </button>
                             <button onClick={() => setShowLabels(!showLabels)} style={{ ...rBtnStyle, position: 'relative', backgroundColor: showLabels ? 'rgba(0,0,0,0.05)' : 'transparent' }} title="Toggle Labels">
@@ -284,11 +284,18 @@ const ZenToolbar: React.FC<ZenToolbarProps> = ({
     )
 }
 
-const SizeRangeIcon = ({ color }: { color: string }) => (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <circle cx="6" cy="18" r="1.5" fill={color} />
-        <circle cx="18" cy="6" r="4" fill={color} />
-        <path d="M7.5 16.5L14.5 9.5" stroke={color} strokeWidth="1" opacity="0.4" />
+const BrushSizeIcon = ({ color }: { color: string }) => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z" fill={color} fillOpacity="0.2" />
+        <circle cx="12" cy="12" r="4" fill={color} />
+        <path d="M12 3v2M3 12h2M21 12h-2M12 21v-2" stroke={color} strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
+    </svg>
+)
+const PaperIcon = ({ stroke }: { stroke: string }) => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="5" y="4" width="14" height="18" rx="2" ry="2" />
+        <path d="M9 2H19a2 2 0 0 1 2 2v14" opacity="0.5" />
+        <path d="M9 10h6M9 14h4" strokeWidth="1.5" opacity="0.7" />
     </svg>
 )
 const WetRangeIcon = ({ color }: { color: string }) => (

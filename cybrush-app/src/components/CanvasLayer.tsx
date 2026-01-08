@@ -34,6 +34,12 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
     const lastXRef = useRef(0)
     const lastYRef = useRef(0)
     const rectRef = useRef<DOMRect | null>(null)
+    const pointsRef = useRef<{ x: number, y: number, p: number }[]>([])
+    const pressureBufferRef = useRef<number[]>([])
+    const lastForceRef = useRef(0.5)
+    // For tapering
+    const lastVelocityRef = useRef(0)
+    const lastTimeRef = useRef(0)
 
     const toolRef = useRef<Tool>(tool)
     const sizeRef = useRef(brushSize)
@@ -169,10 +175,6 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
                 fCtx.drawImage(pImg, 0, 0, final.width, final.height)
             }
             fCtx.drawImage(canvas, 0, 0)
-            const dpr = window.devicePixelRatio || 1
-            fCtx.save(); fCtx.scale(dpr, dpr)
-            fCtx.font = 'bold 16px "Inter", sans-serif'; fCtx.fillStyle = 'rgba(0, 0, 0, 0.4)'
-            fCtx.textAlign = 'right'; fCtx.fillText('CyBrush 2026', (final.width / dpr) - 30, (final.height / dpr) - 30)
             fCtx.restore()
             const fileName = `cybrush-${new Date().getTime()}.png`
             final.toBlob(async (blob) => {
@@ -217,19 +219,33 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
             return [{ s: 1 + 3.5 * w, a: 0.005 * w }, { s: 1 + 2.2 * w, a: 0.015 * w }, { s: 1 + 1.4 * w, a: 0.04 * w }, { s: 1 + 0.8 * w, a: 0.08 * w }, { s: 1, a: 0.2 }, { s: 0.8, a: 0.35 }, { s: 0.6, a: 0.55 }, { s: 0.4, a: 0.75 }, { s: 0.2, a: 0.95 }].filter(p => p.a > 0)
         }
 
-        const drawSegment = (x: number, y: number, force: number) => {
-            const v = viewRef.current; const worldX = (x - v.x) / v.scale; const worldY = (y - v.y) / v.scale
-            const p = Math.pow(force || 0.4, 1.3); const baseSize = p * sizeRef.current
+        const drawCurveSegment = (x1: number, y1: number, x2: number, y2: number, x3: number, y3: number, force: number) => {
+            const p = Math.pow(force || 0.5, 1.3); const baseSize = p * sizeRef.current
             const rgb = colorRef.current.startsWith('#') ? hexToRgb(colorRef.current) : colorRef.current
             const passes = getPasses(wetnessRef.current)
-            ctx.beginPath(); ctx.moveTo(lastXRef.current, lastYRef.current); ctx.lineTo(worldX, worldY)
+            const xc = (x2 + x3) / 2; const yc = (y2 + y3) / 2
+
+            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo(x2, y2, xc, yc)
             if (toolRef.current === 'ERA') {
                 ctx.globalCompositeOperation = 'destination-out'; ctx.lineWidth = baseSize * 1.5; ctx.stroke()
                 ctx.globalCompositeOperation = 'source-over'
             } else {
                 for (const pass of passes) { ctx.lineWidth = baseSize * pass.s; ctx.strokeStyle = `rgba(${rgb}, ${pass.a})`; ctx.stroke() }
             }
-            lastXRef.current = worldX; lastYRef.current = worldY
+            lastXRef.current = xc; lastYRef.current = yc
+        }
+
+        const drawLineLast = (x: number, y: number, force: number) => {
+            const p = Math.pow(force || 0.5, 1.3); const baseSize = p * sizeRef.current
+            const rgb = colorRef.current.startsWith('#') ? hexToRgb(colorRef.current) : colorRef.current
+            const passes = getPasses(wetnessRef.current)
+            ctx.beginPath(); ctx.moveTo(lastXRef.current, lastYRef.current); ctx.lineTo(x, y)
+            if (toolRef.current === 'ERA') {
+                ctx.globalCompositeOperation = 'destination-out'; ctx.lineWidth = baseSize * 1.5; ctx.stroke()
+                ctx.globalCompositeOperation = 'source-over'
+            } else {
+                for (const pass of passes) { ctx.lineWidth = baseSize * pass.s; ctx.strokeStyle = `rgba(${rgb}, ${pass.a})`; ctx.stroke() }
+            }
         }
 
         const onTouchStart = (e: TouchEvent) => {
@@ -264,14 +280,65 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
             const touch = e.touches[0]
             const worldX = (touch.clientX - v.x) / v.scale; const worldY = (touch.clientY - v.y) / v.scale
             lastXRef.current = worldX; lastYRef.current = worldY
+            const force = (touch as any).force || 0.5
+            lastForceRef.current = force
+            pressureBufferRef.current = [force, force, force, force, force] // Fill buffer
+            lastVelocityRef.current = 0
+            lastTimeRef.current = Date.now()
+            pointsRef.current = [{ x: worldX, y: worldY, p: force }]
 
             if (toolRef.current === 'SEAL') {
-                const sealSize = 60; ctx.save(); ctx.translate(worldX, worldY); ctx.rotate(-0.05)
-                ctx.fillStyle = '#aa1111'; ctx.fillRect(-sealSize / 2, -sealSize / 2, sealSize, sealSize)
+                const sealSize = 64
+                ctx.save()
+                ctx.translate(worldX, worldY)
+                ctx.rotate((Math.random() - 0.5) * 0.15) // Natural slight rotation
+
+                // 1. Draw Rough Base (Cinnabar)
+                ctx.beginPath()
+                const roughness = 2.0
+                const half = sealSize / 2
+                // Top
+                for (let i = -half; i <= half; i += 4) ctx.lineTo(i, -half + (Math.random() - 0.5) * roughness)
+                // Right
+                for (let i = -half; i <= half; i += 4) ctx.lineTo(half + (Math.random() - 0.5) * roughness, i)
+                // Bottom
+                for (let i = half; i >= -half; i -= 4) ctx.lineTo(i, half + (Math.random() - 0.5) * roughness)
+                // Left
+                for (let i = half; i >= -half; i -= 4) ctx.lineTo(-half + (Math.random() - 0.5) * roughness, i)
+
+                ctx.closePath()
+                ctx.fillStyle = '#b52a1c' // Authentic Cinnabar
+                ctx.fill()
+
+                // 2. Texture & Wear (Negative Space)
                 ctx.globalCompositeOperation = 'destination-out'
-                for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.arc((Math.random() - 0.5) * sealSize, (Math.random() - 0.5) * sealSize, 1 + Math.random() * 2, 0, Math.PI * 2); ctx.fill() }
-                ctx.globalCompositeOperation = 'source-over'; ctx.font = 'bold 24px "Inter", serif'
-                ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('CY', 0, 0); ctx.restore(); saveToStorage()
+
+                // A. Inner Border (Rough)
+                const gap = 5
+                ctx.lineWidth = 1.5
+                ctx.beginPath()
+                ctx.moveTo(-half + gap, -half + gap); ctx.lineTo(half - gap, -half + gap)
+                ctx.lineTo(half - gap, half - gap); ctx.lineTo(-half + gap, half - gap)
+                ctx.closePath()
+                // Jitter the border stroke slightly
+                ctx.strokeStyle = 'rgba(0,0,0,1)' // Color doesn't matter for dest-out
+                // We actually want a "cut" look, so regular stroke is fine
+                const oldDash = ctx.getLineDash(); ctx.setLineDash([15, 2]); ctx.stroke(); ctx.setLineDash(oldDash)
+
+                // B. Surface Noise (Porous stone effect)
+                for (let i = 0; i < 150; i++) {
+                    const rx = (Math.random() - 0.5) * sealSize
+                    const ry = (Math.random() - 0.5) * sealSize
+                    const r = Math.random() < 0.2 ? 1.5 : 0.5 // Mix of big chips and small pores
+                    ctx.beginPath(); ctx.arc(rx, ry, r, 0, Math.PI * 2); ctx.fill()
+                }
+
+                // C. Text (Cut out)
+                ctx.font = '700 28px "Inter", serif' // Heavier weight
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+                ctx.fillText('CY', 0, 2) // Slight offset for optical center
+
+                ctx.restore(); saveToStorage()
             } else {
                 const p = Math.pow((touch as any).force || 0.4, 1.3); const baseSize = (p * sizeRef.current) / 2
                 const rgb = colorRef.current.startsWith('#') ? hexToRgb(colorRef.current) : colorRef.current
@@ -302,7 +369,52 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
                 return
             }
             if (!isDrawingRef.current || toolRef.current === 'SEAL' || !e.touches[0] || (e.touches[0] as any).touchType !== 'stylus') return
-            e.preventDefault(); drawSegment(e.touches[0].clientX, e.touches[0].clientY, (e.touches[0] as any).force)
+            e.preventDefault()
+            const v = viewRef.current
+
+            // Get coalesced events
+            const events = (e as any).getCoalescedEvents ? (e as any).getCoalescedEvents() : [e]
+
+            for (const ev of events) {
+                const t = ev.touches ? ev.touches[0] : ev; if (!t) continue
+
+                const worldX = (t.clientX - v.x) / v.scale
+                const worldY = (t.clientY - v.y) / v.scale
+
+                // 1. Distance Filter: Ignore < 1.5px movements (screen space) to reduce noise
+                // We check against the LAST committed point (p2 in the curve) or start
+                const lastPoint = pointsRef.current.length > 0 ? pointsRef.current[pointsRef.current.length - 1]! : { x: lastXRef.current, y: lastYRef.current }
+                const distSq = (worldX - lastPoint.x) ** 2 + (worldY - lastPoint.y) ** 2
+                // 1.5px in world space (approx) - adjust by scale if needed, but raw world check is safer
+                if (distSq < 2) continue
+
+                // 2. Rolling Average Pressure
+                const rawForce = (t as any).force || 0.5
+                pressureBufferRef.current.push(rawForce)
+                pressureBufferRef.current.shift()
+                const avgForce = pressureBufferRef.current.reduce((a, b) => a + b, 0) / pressureBufferRef.current.length
+
+                // Track velocity for taper
+                const now = Date.now()
+                const dt = now - lastTimeRef.current
+                if (dt > 0) {
+                    const dist = Math.sqrt(distSq)
+                    lastVelocityRef.current = dist / dt // pixels per ms
+                }
+                lastTimeRef.current = now
+
+                pointsRef.current.push({ x: worldX, y: worldY, p: avgForce })
+
+                while (pointsRef.current.length >= 3) {
+                    const p2 = pointsRef.current[1]!
+                    const p3 = pointsRef.current[2]!
+                    // Draw curve from p1(or last) to mid(p2, p3) using p2 as control
+                    drawCurveSegment(lastXRef.current, lastYRef.current, p2.x, p2.y, p3.x, p3.y, p2.p)
+                    pointsRef.current.shift()
+                }
+            }
+
+
         }
 
         const onTouchEnd = (e: TouchEvent) => {
@@ -316,7 +428,41 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
                     g.lastTwoFingerTapTime = now
                 } else if (e.touches.length === 0 && e.changedTouches.length === 3) redo()
             }
-            if (isDrawingRef.current) { isDrawingRef.current = false; saveToStorage() }
+            if (isDrawingRef.current) {
+                // Flash remaining points
+                // 3. Synthetic Tapering (Flick Fix)
+                // If we have velocity, project 1-2 extra points decaying pressure
+                if (pointsRef.current.length > 0) {
+                    const last = pointsRef.current[pointsRef.current.length - 1]!
+                    // Draw what's left in the buffer first (usually just 1 point)
+                    drawLineLast(last.x, last.y, last.p)
+
+                    // Taper if fast enough (> 0.5 px/ms)
+                    if (lastVelocityRef.current > 0.5) {
+                        const dx = last.x - lastXRef.current // vector of last segment
+                        const dy = last.y - lastYRef.current
+                        const len = Math.sqrt(dx * dx + dy * dy)
+                        if (len > 0) {
+                            // Project 2 points
+                            const taperLen = Math.min(len * 2, 20) // Limit taper length
+                            const ux = dx / len; const uy = dy / len
+
+                            // Point 1: 50% length, 50% pressure
+                            const t1x = last.x + ux * (taperLen * 0.5)
+                            const t1y = last.y + uy * (taperLen * 0.5)
+                            drawCurveSegment(last.x, last.y, t1x, t1y, t1x, t1y, last.p * 0.5)
+
+                            // Point 2: 100% length, 0% pressure
+                            const t2x = last.x + ux * taperLen
+                            const t2y = last.y + uy * taperLen
+                            // We just use drawLineLast for the very tip
+                            // Actually curve is better to connect
+                            drawCurveSegment(t1x, t1y, t2x, t2y, t2x, t2y, 0.01)
+                        }
+                    }
+                }
+                isDrawingRef.current = false; saveToStorage()
+            }
         }
 
         canvas.addEventListener('touchstart', onTouchStart, { passive: false })
@@ -355,13 +501,7 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
                 )}
             </div>
 
-            <div style={{
-                position: 'fixed', bottom: '30px', right: '30px', fontFamily: '"Inter", sans-serif',
-                fontSize: '18px', fontWeight: 'bold', color: 'rgba(0, 0, 0, 0.4)',
-                userSelect: 'none', pointerEvents: 'none', zIndex: 2, fontStyle: 'italic'
-            }}>
-                CyBrush 2026
-            </div>
+
         </div>
     )
 })
