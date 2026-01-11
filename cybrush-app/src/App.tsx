@@ -1,9 +1,22 @@
 import { useState, useRef, useEffect } from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import CanvasLayer, { CanvasRef } from './components/CanvasLayer'
 import ZenToolbar, { Tool } from './components/ZenToolbar'
 import PaperSelector, { PaperType, PAPERS } from './components/PaperSelector'
+import StartPage from './components/StartPage'
 
 function App() {
+    return (
+        <Routes>
+            <Route path="/" element={<StartPage />} />
+            <Route path="/strokes" element={<StrokesView />} />
+            {/* Fallback to home */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+    )
+}
+
+function StrokesView() {
     const [selectedPaper, setSelectedPaper] = useState<PaperType | null>(() => {
         const savedPaperId = localStorage.getItem('cybrush_paper_id')
         if (savedPaperId) {
@@ -55,7 +68,6 @@ function App() {
     const handlePaperSelection = (paper: PaperType) => {
         const hasWork = localStorage.getItem('cybrush_autosave')
         if (hasWork) {
-            // Instead of native confirm, we set pending state to show our custom modal
             setPendingPaper(paper)
         } else {
             setSelectedPaper(paper)
