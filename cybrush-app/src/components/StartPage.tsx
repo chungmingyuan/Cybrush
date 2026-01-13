@@ -162,12 +162,11 @@ const StartPage: React.FC = () => {
                                     borderColor: '#0a0a0a'
                                 }}
                             >
-                                <div
-                                    className="text-black text-[12rem] lg:text-[24rem] opacity-95 select-none transform translate-y-[-10px]"
-                                    style={{ fontFamily: "'Ma Shan Zheng', cursive" }}
-                                >
-                                    永
-                                </div>
+                                <img
+                                    src="https://upload.wikimedia.org/wikipedia/commons/3/39/%E6%B0%B8-calligraphic-order.gif"
+                                    alt="Yong Calligraphy Animation"
+                                    className="w-[110%] h-auto opacity-95 select-none transform translate-y-[-10px] mix-blend-multiply"
+                                />
 
                                 <div
                                     className="absolute bottom-[15px] right-[15px] md:bottom-[20px] md:right-[20px] lg:bottom-[30px] lg:right-[30px] w-[45px] h-[45px] lg:w-[70px] lg:h-[70px] border-[2px] lg:border-[3px] border-[#a81c1c] flex flex-col items-center justify-center text-[#a81c1c] font-black rotate-[-3deg] bg-[rgba(168,28,28,0.05)]"
