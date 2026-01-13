@@ -18,9 +18,10 @@ body,
     -webkit-touch-callout: none;
     -webkit-user-select: none;
     user-select: none;
+    background-color: #080808;
 }
 
-body {
-    background-color: #080808;
-    color: white;
+/* Ensure the canvas fills the space without scrolling */
+canvas {
+    display: block;
 }

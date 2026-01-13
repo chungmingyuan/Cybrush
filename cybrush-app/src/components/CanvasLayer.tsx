@@ -40,6 +40,9 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
     const lastVelocityRef = useRef(0)
     const lastTimeRef = useRef(0)
 
+    const sealCacheRef = useRef<{ canvas: HTMLCanvasElement, text: string } | null>(null)
+    const autosaveTimerRef = useRef<any>(null)
+
     const toolRef = useRef<Tool>(tool)
     const sizeRef = useRef(brushSize)
     const wetnessRef = useRef(wetness)
@@ -124,9 +127,12 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
     }, [])
 
     const saveToStorage = useCallback(() => {
-        const canvas = canvasRef.current
-        if (!canvas) return
-        localStorage.setItem(STORAGE_KEY, canvas.toDataURL('image/png'))
+        if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
+        autosaveTimerRef.current = setTimeout(() => {
+            const canvas = canvasRef.current
+            if (!canvas) return
+            localStorage.setItem(STORAGE_KEY, canvas.toDataURL('image/png'))
+        }, 1000)
     }, [])
 
     const resetView = useCallback(() => {
@@ -199,18 +205,48 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
             const parent = canvas.parentElement?.parentElement
             const rect = parent ? parent.getBoundingClientRect() : { width: window.innerWidth, height: window.innerHeight }
             const w = rect.width, h = rect.height
-
             const temp = document.createElement('canvas')
             temp.width = canvas.width; temp.height = canvas.height
             temp.getContext('2d')?.drawImage(canvas, 0, 0)
-
             canvas.width = w * dpr; canvas.height = h * dpr
             canvas.style.width = `${w}px`; canvas.style.height = `${h}px`
-
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
             ctx.lineCap = 'round'; ctx.lineJoin = 'round'
-
             ctx.drawImage(temp, 0, 0, w, h)
+        }
+
+        const generateSealTexture = (text: string) => {
+            const sealHeight = 64
+            const sealWidth = 64 + Math.max(0, (text.length - 2) * 28)
+            const halfW = sealWidth / 2
+            const halfHeight = sealHeight / 2
+            const pad = 4
+            const cacheCanvas = document.createElement('canvas')
+            cacheCanvas.width = sealWidth + pad * 2
+            cacheCanvas.height = sealHeight + pad * 2
+            const cCtx = cacheCanvas.getContext('2d')
+            if (!cCtx) return null
+            cCtx.translate(halfW + pad, halfHeight + pad)
+            cCtx.beginPath()
+            const roughness = 2.0
+            for (let i = -halfW; i <= halfW; i += 4) cCtx.lineTo(i, -halfHeight + (Math.random() - 0.5) * roughness)
+            for (let i = -halfHeight; i <= halfHeight; i += 4) cCtx.lineTo(halfW + (Math.random() - 0.5) * roughness, i)
+            for (let i = halfW; i >= -halfW; i -= 4) cCtx.lineTo(i, halfHeight + (Math.random() - 0.5) * roughness)
+            for (let i = halfHeight; i >= -halfHeight; i -= 4) cCtx.lineTo(-halfW + (Math.random() - 0.5) * roughness, i)
+            cCtx.closePath(); cCtx.fillStyle = '#b52a1c'; cCtx.fill()
+            cCtx.globalCompositeOperation = 'destination-out'
+            const gap = 5; cCtx.lineWidth = 1.5; cCtx.beginPath()
+            cCtx.moveTo(-halfW + gap, -halfHeight + gap); cCtx.lineTo(halfW - gap, -halfHeight + gap)
+            cCtx.lineTo(halfW - gap, halfHeight - gap); cCtx.lineTo(-halfW + gap, halfHeight - gap)
+            cCtx.closePath(); cCtx.strokeStyle = 'rgba(0,0,0,1)'; cCtx.setLineDash([15, 2]); cCtx.stroke(); cCtx.setLineDash([])
+            for (let i = 0; i < 150; i++) {
+                const rx = (Math.random() - 0.5) * sealWidth; const ry = (Math.random() - 0.5) * sealHeight
+                const r = Math.random() < 0.2 ? 1.5 : 0.5
+                cCtx.beginPath(); cCtx.arc(rx, ry, r, 0, Math.PI * 2); cCtx.fill()
+            }
+            const fontSize = text.length > 3 ? 24 : 28
+            cCtx.font = `700 ${fontSize}px "Inter", serif`; cCtx.textAlign = 'center'; cCtx.textBaseline = 'middle'; cCtx.fillText(text, 0, 2)
+            return cacheCanvas
         }
 
         const getPasses = (wet: number) => {
@@ -223,7 +259,6 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
             const rgb = colorRef.current.startsWith('#') ? hexToRgb(colorRef.current) : colorRef.current
             const passes = getPasses(wetnessRef.current)
             const xc = (x2 + x3) / 2; const yc = (y2 + y3) / 2
-
             ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo(x2, y2, xc, yc)
             if (toolRef.current === 'ERA') {
                 ctx.globalCompositeOperation = 'destination-out'; ctx.lineWidth = baseSize * 1.5; ctx.stroke()
@@ -251,7 +286,6 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
             if (!e.touches[0]) return
             if ((e.touches[0] as any).touchType === 'direct') e.preventDefault()
             const v = viewRef.current
-
             if (e.touches.length >= 2) {
                 isDrawingRef.current = false
                 const t1 = e.touches[0], t2 = e.touches[1]
@@ -273,7 +307,6 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
                 }
                 return
             }
-
             if ((e.touches[0] as any).touchType !== 'stylus') return
             e.preventDefault(); saveHistory(); isDrawingRef.current = true
             const touch = e.touches[0]
@@ -287,45 +320,21 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
             lastVelocityRef.current = 0
             lastTimeRef.current = Date.now()
             pointsRef.current = [{ x: worldX, y: worldY, p: force }]
-
             if (toolRef.current === 'SEAL') {
                 const text = sealTextRef.current || 'CY'
-                const sealHeight = 64
-                // More generous width expansion to prevent overflow (28px per character)
-                const sealWidth = 64 + Math.max(0, (text.length - 2) * 28)
-                const halfW = sealWidth / 2
-                const halfH = sealHeight / 2
-
-                ctx.save()
-                ctx.translate(worldX, worldY)
-                ctx.rotate((Math.random() - 0.5) * 0.15)
-                ctx.beginPath()
-                const roughness = 2.0
-                // Top
-                for (let i = -halfW; i <= halfW; i += 4) ctx.lineTo(i, -halfH + (Math.random() - 0.5) * roughness)
-                // Right
-                for (let i = -halfH; i <= halfH; i += 4) ctx.lineTo(halfW + (Math.random() - 0.5) * roughness, i)
-                // Bottom
-                for (let i = halfW; i >= -halfW; i -= 4) ctx.lineTo(i, halfH + (Math.random() - 0.5) * roughness)
-                // Left
-                for (let i = halfH; i >= -halfH; i -= 4) ctx.lineTo(-halfW + (Math.random() - 0.5) * roughness, i)
-                ctx.closePath(); ctx.fillStyle = '#b52a1c'; ctx.fill()
-
-                ctx.globalCompositeOperation = 'destination-out'
-                const gap = 5; ctx.lineWidth = 1.5; ctx.beginPath()
-                ctx.moveTo(-halfW + gap, -halfH + gap); ctx.lineTo(halfW - gap, -halfH + gap)
-                ctx.lineTo(halfW - gap, halfH - gap); ctx.lineTo(-halfW + gap, halfH - gap)
-                ctx.closePath(); ctx.strokeStyle = 'rgba(0,0,0,1)'; const oldDash = ctx.getLineDash(); ctx.setLineDash([15, 2]); ctx.stroke(); ctx.setLineDash(oldDash)
-
-                for (let i = 0; i < 150; i++) {
-                    const rx = (Math.random() - 0.5) * sealWidth; const ry = (Math.random() - 0.5) * sealHeight
-                    const r = Math.random() < 0.2 ? 1.5 : 0.5
-                    ctx.beginPath(); ctx.arc(rx, ry, r, 0, Math.PI * 2); ctx.fill()
+                if (!sealCacheRef.current || sealCacheRef.current.text !== text) {
+                    const cache = generateSealTexture(text)
+                    if (cache) sealCacheRef.current = { canvas: cache, text }
                 }
-                // Dynamic font size: slightly smaller for 4-character strings to guarantee fit
-                const fontSize = text.length > 3 ? 24 : 28
-                ctx.font = `700 ${fontSize}px "Inter", serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, 0, 2)
-                ctx.restore(); saveToStorage()
+                if (sealCacheRef.current) {
+                    const { canvas: cachedCanvas } = sealCacheRef.current
+                    ctx.save()
+                    ctx.translate(worldX, worldY)
+                    ctx.rotate((Math.random() - 0.5) * 0.15)
+                    ctx.drawImage(cachedCanvas, -cachedCanvas.width / 2, -cachedCanvas.height / 2)
+                    ctx.restore()
+                }
+                saveToStorage()
             } else {
                 const p = Math.pow((touch as any).force || 0.4, 1.3); const baseSize = (p * sizeRef.current) / 2
                 const rgb = colorRef.current.startsWith('#') ? hexToRgb(colorRef.current) : colorRef.current
@@ -360,24 +369,19 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
             const events = (e as any).getCoalescedEvents ? (e as any).getCoalescedEvents() : [e]
             const rect = canvas.getBoundingClientRect(); const dpr = window.devicePixelRatio || 1
             const canvasW = canvas.width / dpr; const canvasH = canvas.height / dpr
-
             for (const ev of events) {
                 const t = ev.touches ? ev.touches[0] : ev; if (!t) continue
                 const worldX = ((t.clientX - rect.left) / (rect.width || 1)) * canvasW
                 const worldY = ((t.clientY - rect.top) / (rect.height || 1)) * canvasH
-
                 const lastPoint = pointsRef.current.length > 0 ? pointsRef.current[pointsRef.current.length - 1]! : { x: lastXRef.current, y: lastYRef.current }
                 const distSq = (worldX - lastPoint.x) ** 2 + (worldY - lastPoint.y) ** 2
                 if (distSq < 2) continue
-
                 const rawForce = (t as any).force || 0.5
                 pressureBufferRef.current.push(rawForce); pressureBufferRef.current.shift()
                 const avgForce = pressureBufferRef.current.reduce((a, b) => a + b, 0) / pressureBufferRef.current.length
-
                 const now = Date.now(); const dt = now - lastTimeRef.current
                 if (dt > 0) { lastVelocityRef.current = Math.sqrt(distSq) / dt }
                 lastTimeRef.current = now
-
                 pointsRef.current.push({ x: worldX, y: worldY, p: avgForce })
                 while (pointsRef.current.length >= 3) {
                     const p2 = pointsRef.current[1]!; const p3 = pointsRef.current[2]!
@@ -416,7 +420,6 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
                 isDrawingRef.current = false; saveToStorage()
             }
         }
-
         canvas.addEventListener('touchstart', onTouchStart, { passive: false })
         canvas.addEventListener('touchmove', onTouchMove, { passive: false })
         canvas.addEventListener('touchend', onTouchEnd)
@@ -427,9 +430,9 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
     }, [undo, redo, saveHistory, resetView])
 
     return (
-        <div style={{ position: 'relative', width: '100dvw', height: '100dvh', overflow: 'hidden' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', overflow: 'hidden' }}>
             <div style={{
-                position: 'fixed', top: 0, left: 0, width: '100dvw', height: '100dvh',
+                position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh',
                 transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
                 transformOrigin: '0 0', willChange: 'transform', zIndex: 1,
                 backgroundColor: paper.color, backgroundImage: paper.url ? `url(${paper.url})` : 'none',
@@ -447,7 +450,7 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
             }}>
                 {Math.round(view.scale * 100)}%
                 {view.scale !== 1 && (
-                    <span onClick={() => resetView()} style={{ marginLeft: '10px', color: '#ff4d4d', cursor: 'pointer', pointerEvents: 'auto', borderLeft: '1px solid rgba(255,255,255,0.3)', paddingLeft: '10px' }}>
+                    <span onClick={() => { resetView() }} style={{ marginLeft: '10px', color: '#ff4d4d', cursor: 'pointer', pointerEvents: 'auto', borderLeft: '1px solid rgba(255,255,255,0.3)', paddingLeft: '10px' }}>
                         Reset
                     </span>
                 )}

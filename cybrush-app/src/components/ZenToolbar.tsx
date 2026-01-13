@@ -48,28 +48,61 @@ const ZenToolbar: React.FC<ZenToolbarProps> = ({
         }
     }, [])
 
+
     // HANDLE ROTATION / RESIZE
     useEffect(() => {
         const handleResize = () => {
             if (!toolbarRef.current) return
             const rect = toolbarRef.current.getBoundingClientRect()
+
+            // USE VISUAL VIEWPORT for better accuracy on iOS Chrome/Safari
+            const winW = window.visualViewport?.width || window.innerWidth
+            const winH = window.visualViewport?.height || window.innerHeight
+            const offsetTop = window.visualViewport?.offsetTop || 0
+
+            // Force scroll to top to prevent canvas shift
+            if (offsetTop > 0) window.scrollTo(0, 0)
+
             setPos(prev => {
-                // If it hasn't been moved much, keep it centered bottom
-                if (Math.abs(prev.x - (window.innerWidth - rect.width) / 2) < 50) {
+                // If it was centered bottom, try to keep it centered bottom
+                if (Math.abs(prev.x - (winW - rect.width) / 2) < 50) {
                     return {
-                        x: (window.innerWidth - rect.width) / 2,
-                        y: window.innerHeight - rect.height - 40
+                        x: (winW - rect.width) / 2,
+                        y: winH - rect.height - 40 + offsetTop
                     }
                 }
                 // Otherwise clamp to keep it visible
                 return {
-                    x: Math.max(10, Math.min(prev.x, window.innerWidth - rect.width - 10)),
-                    y: Math.max(10, Math.min(prev.y, window.innerHeight - rect.height - 10))
+                    x: Math.max(10, Math.min(prev.x, winW - rect.width - 10)),
+                    y: Math.max(10, Math.min(prev.y, winH - rect.height - 10 + offsetTop))
                 }
             })
         }
-        window.addEventListener('resize', handleResize)
-        return () => window.removeEventListener('resize', handleResize)
+
+        const vp = window.visualViewport
+        if (vp) {
+            vp.addEventListener('resize', handleResize)
+            vp.addEventListener('scroll', handleResize)
+        } else {
+            window.addEventListener('resize', handleResize)
+        }
+
+        // Catch the keyboard closing state
+        const handleFocusOut = () => {
+            setTimeout(handleResize, 100);
+            setTimeout(handleResize, 400); // Final check after animation
+        };
+        window.addEventListener('focusout', handleFocusOut);
+
+        return () => {
+            if (vp) {
+                vp.removeEventListener('resize', handleResize)
+                vp.removeEventListener('scroll', handleResize)
+            } else {
+                window.removeEventListener('resize', handleResize)
+            }
+            window.removeEventListener('focusout', handleFocusOut);
+        }
     }, [])
 
     useEffect(() => {
@@ -218,7 +251,15 @@ const ZenToolbar: React.FC<ZenToolbarProps> = ({
                 </button>
 
                 {isExpanded && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: mainGap, flexShrink: 1, minWidth: 0 }} onTouchStart={e => e.stopPropagation()}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: mainGap, flexShrink: 1, minWidth: 0 }} onTouchStart={e => {
+                        // Only stop propagation if it's NOT a tap on the indicator (though indicator is outside anyway)
+                        // But let's allow taps between buttons to go through to parent for minimization
+                        if ((e.target as HTMLElement).tagName === 'DIV') {
+                            // Don't swallow taps on the bar background
+                        } else {
+                            e.stopPropagation()
+                        }
+                    }}>
                         <div style={{ width: '1px', height: '24px', backgroundColor: themeBorder, flexShrink: 0 }} />
                         <div style={{ position: 'relative', width: `${bSize}px`, height: `${bSize}px`, flexShrink: 0 }}>
                             <div style={{ ...rBtnStyle, position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
@@ -231,13 +272,17 @@ const ZenToolbar: React.FC<ZenToolbarProps> = ({
                                 onChange={(e) => onColorChange(e.target.value)}
                                 style={{
                                     position: 'absolute',
-                                    top: 0, left: 0,
-                                    width: '100%', height: '100%',
+                                    top: 0,
+                                    left: 0,
+                                    width: '100%',
+                                    height: '100%',
                                     opacity: 0,
                                     cursor: 'pointer',
                                     border: 'none',
                                     padding: 0,
-                                    WebkitAppearance: 'none'
+                                    margin: 0,
+                                    WebkitAppearance: 'none',
+                                    pointerEvents: 'auto'
                                 }}
                             />
                         </div>
@@ -272,23 +317,26 @@ const ZenToolbar: React.FC<ZenToolbarProps> = ({
                                                 inputMode="text"
                                                 data-lpignore="true"
                                                 style={{
-                                                    width: '50px',
+                                                    width: '66px',
                                                     backgroundColor: 'rgba(0,0,0,0.1)',
                                                     border: 'none',
                                                     borderRadius: '4px',
                                                     color: themeIconColor,
-                                                    fontSize: '12px',
+                                                    fontSize: '16px',
                                                     fontWeight: 'bold',
                                                     textAlign: 'center',
                                                     padding: '4px 0',
                                                     outline: 'none',
-                                                    fontFamily: '"Inter", sans-serif'
+                                                    fontFamily: '"Inter", sans-serif',
+                                                    transform: 'scale(0.75)',
+                                                    transformOrigin: 'center'
                                                 }}
                                                 onTouchStart={e => e.stopPropagation()}
                                             />
                                         ) : (
                                             <div
                                                 onClick={() => setIsEditingSeal(true)}
+                                                onTouchStart={e => e.stopPropagation()}
                                                 style={{
                                                     padding: '4px 10px',
                                                     backgroundColor: 'rgba(0,0,0,0.05)',

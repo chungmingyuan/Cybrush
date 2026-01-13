@@ -34,9 +34,50 @@ function StrokesView() {
     const canvasRef = useRef<CanvasRef>(null)
 
     useEffect(() => {
-        localStorage.setItem('cybrush_seal_text', sealText)
+        const timer = setTimeout(() => {
+            localStorage.setItem('cybrush_seal_text', sealText)
+        }, 500)
+        return () => clearTimeout(timer)
     }, [sealText])
 
+    // VIEWPORT STABILIZATION for Chrome/Safari on iPad
+    useEffect(() => {
+        const stabilize = () => {
+            // Force scroll reset
+            window.scrollTo(0, 0);
+
+            // Lock background height to actual viewport
+            if (window.visualViewport) {
+                const height = window.visualViewport.height;
+                document.body.style.height = `${height}px`;
+                document.documentElement.style.height = `${height}px`;
+            }
+        };
+
+        const viewport = window.visualViewport;
+        if (viewport) {
+            viewport.addEventListener('resize', stabilize);
+            viewport.addEventListener('scroll', stabilize);
+        }
+
+        // Handle focus shifts
+        window.addEventListener('focusin', stabilize);
+        window.addEventListener('focusout', () => {
+            // Small delay to let keyboard start retracting
+            setTimeout(stabilize, 100);
+            setTimeout(stabilize, 300); // Second attempt to catch final state
+        });
+
+        stabilize();
+        return () => {
+            if (viewport) {
+                viewport.removeEventListener('resize', stabilize);
+                viewport.removeEventListener('scroll', stabilize);
+            }
+            window.removeEventListener('focusin', stabilize);
+            window.removeEventListener('focusout', stabilize);
+        };
+    }, []);
     useEffect(() => {
         if (selectedPaper) {
             localStorage.setItem('cybrush_paper_id', selectedPaper.id)
@@ -60,7 +101,6 @@ function StrokesView() {
 
     const handleClear = () => {
         canvasRef.current?.clear()
-        setSealText('CY')
     }
 
     const handleDownload = () => {
@@ -86,7 +126,6 @@ function StrokesView() {
             if (shouldClear) {
                 localStorage.removeItem('cybrush_autosave')
                 canvasRef.current?.clear()
-                setSealText('CY')
             }
             setSelectedPaper(pendingPaper)
             setPendingPaper(null)
@@ -117,9 +156,11 @@ function StrokesView() {
 
     return (
         <div style={{
-            width: '100dvw',
-            height: '100dvh',
-            position: 'relative',
+            width: '100vw',
+            height: '100vh',
+            position: 'absolute',
+            top: 0,
+            left: 0,
             overflow: 'hidden',
             backgroundColor: '#111' // "The Desk" background
         }}>
