@@ -16,11 +16,13 @@ interface ZenToolbarProps {
     onColorChange: (color: string) => void
     sealText: string
     onSealTextChange: (text: string) => void
+    sealLibrary: string[]
+    onLibraryUpdate: (library: string[]) => void
     isDark?: boolean
 }
 
 const ZenToolbar: React.FC<ZenToolbarProps> = ({
-    currentTool, onToolChange, onClear, onDownload, onReset, brushSize, onSizeChange, wetness, onWetnessChange, brushColor, onColorChange, sealText, onSealTextChange, isDark
+    currentTool, onToolChange, onClear, onDownload, onReset, brushSize, onSizeChange, wetness, onWetnessChange, brushColor, onColorChange, sealText, onSealTextChange, sealLibrary, onLibraryUpdate, isDark
 }) => {
     const [isExpanded, setIsExpanded] = useState(true)
     const [isHidden, setIsHidden] = useState(false)
@@ -35,6 +37,17 @@ const ZenToolbar: React.FC<ZenToolbarProps> = ({
     const toolbarRef = useRef<HTMLDivElement>(null)
     const [isEditingSeal, setIsEditingSeal] = useState(false)
     const [showSealInput, setShowSealInput] = useState(true)
+    const [showLibrary, setShowLibrary] = useState(false)
+
+    const handleSaveToLibrary = () => {
+        if (!sealText.trim()) return
+        if (sealLibrary.includes(sealText)) return
+        onLibraryUpdate([...sealLibrary, sealText])
+    }
+
+    const handleDeleteFromLibrary = (text: string) => {
+        onLibraryUpdate(sealLibrary.filter(s => s !== text))
+    }
 
 
     // INITIAL CENTERING logic (run once)
@@ -48,6 +61,12 @@ const ZenToolbar: React.FC<ZenToolbarProps> = ({
         }
     }, [])
 
+
+    useEffect(() => {
+        if (currentTool !== 'SEAL') {
+            setShowLibrary(false)
+        }
+    }, [currentTool])
 
     // HANDLE ROTATION / RESIZE
     useEffect(() => {
@@ -347,10 +366,80 @@ const ZenToolbar: React.FC<ZenToolbarProps> = ({
                                                     cursor: 'pointer',
                                                     minWidth: '30px',
                                                     textAlign: 'center',
-                                                    fontFamily: '"Inter", sans-serif'
+                                                    fontFamily: '"Inter", sans-serif',
+                                                    userSelect: 'none'
                                                 }}
                                             >
                                                 {sealText}
+                                            </div>
+                                        )}
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                setShowLibrary(!showLibrary)
+                                            }}
+                                            style={{ ...rBtnStyle, width: '30px', height: '30px', padding: 0, marginLeft: '4px' }}
+                                            title="Seal Library"
+                                        >
+                                            <LibraryIcon color={showLibrary ? '#aa1111' : themeIconColor} />
+                                        </button>
+
+                                        {showLibrary && (
+                                            <div style={{
+                                                position: 'absolute',
+                                                bottom: '60px',
+                                                left: '0',
+                                                backgroundColor: themeBase,
+                                                border: `1px solid ${themeBorder}`,
+                                                borderRadius: '12px',
+                                                padding: '12px',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: '8px',
+                                                minWidth: '150px',
+                                                boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+                                                zIndex: 1000,
+                                                backdropFilter: 'blur(8px)'
+                                            }} onTouchStart={e => e.stopPropagation()}>
+                                                <div style={{ fontSize: '12px', fontWeight: 'bold', color: themeIconColor, marginBottom: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    Library
+                                                    <button
+                                                        onClick={handleSaveToLibrary}
+                                                        style={{ border: 'none', background: '#aa1111', color: 'white', fontSize: '10px', padding: '2px 8px', borderRadius: '4px', cursor: 'pointer' }}
+                                                    >
+                                                        Add Current
+                                                    </button>
+                                                </div>
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '200px', overflowY: 'auto' }}>
+                                                    {sealLibrary.map((s, i) => (
+                                                        <div key={i} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                                            <button
+                                                                onClick={() => {
+                                                                    onSealTextChange(s)
+                                                                    setShowLibrary(false)
+                                                                }}
+                                                                style={{
+                                                                    padding: '6px 12px',
+                                                                    backgroundColor: sealText === s ? '#aa1111' : 'rgba(0,0,0,0.05)',
+                                                                    color: sealText === s ? 'white' : themeIconColor,
+                                                                    border: 'none',
+                                                                    borderRadius: '4px',
+                                                                    fontSize: '12px',
+                                                                    fontWeight: 'bold',
+                                                                    cursor: 'pointer'
+                                                                }}
+                                                            >
+                                                                {s}
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); handleDeleteFromLibrary(s); }}
+                                                                style={{ border: 'none', background: 'transparent', padding: '2px', cursor: 'pointer', marginLeft: '2px' }}
+                                                            >
+                                                                <TrashIcon color={sealText === s ? 'white' : 'rgba(0,0,0,0.3)'} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -443,6 +532,19 @@ const SealIcon = ({ color }: { color: string }) => (
         <rect x="4" y="4" width="16" height="16" rx="2" fill={color} opacity="0.9" />
         <path d="M8 8h8M8 12h8M8 16h4" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
         <circle cx="15" cy="16" r="1.5" stroke="white" strokeWidth="1.5" />
+    </svg>
+)
+
+const LibraryIcon = ({ color }: { color: string }) => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    </svg>
+)
+
+const TrashIcon = ({ color }: { color: string }) => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
     </svg>
 )
 

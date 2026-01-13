@@ -31,6 +31,10 @@ function StrokesView() {
     const [brushColor, setBrushColor] = useState('#111111')
     const [wetness, setWetness] = useState(60)
     const [sealText, setSealText] = useState(() => localStorage.getItem('cybrush_seal_text') || 'CY')
+    const [sealLibrary, setSealLibrary] = useState<string[]>(() => {
+        const saved = localStorage.getItem('cybrush_seal_library')
+        return saved ? JSON.parse(saved) : ['CY']
+    })
     const canvasRef = useRef<CanvasRef>(null)
 
     useEffect(() => {
@@ -39,6 +43,10 @@ function StrokesView() {
         }, 500)
         return () => clearTimeout(timer)
     }, [sealText])
+
+    useEffect(() => {
+        localStorage.setItem('cybrush_seal_library', JSON.stringify(sealLibrary))
+    }, [sealLibrary])
 
     // VIEWPORT STABILIZATION for Chrome/Safari on iPad
     useEffect(() => {
@@ -199,9 +207,11 @@ function StrokesView() {
                 onWetnessChange={setWetness}
                 brushColor={brushColor}
                 onColorChange={setBrushColor}
-                isDark={isDarkPaper}
                 sealText={sealText}
                 onSealTextChange={setSealText}
+                sealLibrary={sealLibrary}
+                onLibraryUpdate={setSealLibrary}
+                isDark={isDarkPaper}
             />
         </div>
     )
