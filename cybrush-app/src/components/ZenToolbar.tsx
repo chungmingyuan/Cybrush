@@ -14,11 +14,13 @@ interface ZenToolbarProps {
     onWetnessChange: (wetness: number) => void
     brushColor: string
     onColorChange: (color: string) => void
+    sealText: string
+    onSealTextChange: (text: string) => void
     isDark?: boolean
 }
 
 const ZenToolbar: React.FC<ZenToolbarProps> = ({
-    currentTool, onToolChange, onClear, onDownload, onReset, brushSize, onSizeChange, wetness, onWetnessChange, brushColor, onColorChange, isDark
+    currentTool, onToolChange, onClear, onDownload, onReset, brushSize, onSizeChange, wetness, onWetnessChange, brushColor, onColorChange, sealText, onSealTextChange, isDark
 }) => {
     const [isExpanded, setIsExpanded] = useState(true)
     const [isHidden, setIsHidden] = useState(false)
@@ -31,6 +33,9 @@ const ZenToolbar: React.FC<ZenToolbarProps> = ({
         moved: false
     })
     const toolbarRef = useRef<HTMLDivElement>(null)
+    const [isEditingSeal, setIsEditingSeal] = useState(false)
+    const [showSealInput, setShowSealInput] = useState(true)
+
 
     // INITIAL CENTERING logic (run once)
     useEffect(() => {
@@ -136,6 +141,15 @@ const ZenToolbar: React.FC<ZenToolbarProps> = ({
         }
     }
 
+    const handleSealClick = () => {
+        if (currentTool !== 'SEAL') {
+            onToolChange('SEAL')
+            setShowSealInput(true)
+        } else {
+            setShowSealInput(prev => !prev)
+        }
+    }
+
     const curColor = currentTool === 'ERA' ? '#666' : (currentTool === 'SEAL' ? '#aa1111' : brushColor)
 
     if (isHidden) {
@@ -236,12 +250,68 @@ const ZenToolbar: React.FC<ZenToolbarProps> = ({
                                 <StrongEraserIcon />
                                 {showLabels && <div style={{ ...labelStyle(isDark), left: '50%', transform: 'translateX(-50%)' }}>Erase</div>}
                             </button>
-                            <button onClick={() => onToolChange('SEAL')} style={{ ...rBtnStyle, position: 'relative', backgroundColor: currentTool === 'SEAL' ? 'rgba(0,0,0,0.05)' : 'transparent' }} title="Seal Stamp">
-                                <SealIcon color="#aa1111" />
-                                {showLabels && <div style={{ ...labelStyle(isDark), left: '50%', transform: 'translateX(-50%)' }}>Seal</div>}
-                            </button>
+                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', backgroundColor: currentTool === 'SEAL' ? 'rgba(0,0,0,0.05)' : 'transparent', borderRadius: '24px', transition: 'all 0.3s' }}>
+                                <button onClick={handleSealClick} style={rBtnStyle} title="Seal Stamp">
+                                    <SealIcon color="#aa1111" />
+                                </button>
+                                {currentTool === 'SEAL' && showSealInput && (
+                                    <div style={{ display: 'flex', alignItems: 'center', paddingRight: '12px', marginLeft: '-4px' }}>
+                                        {isEditingSeal ? (
+                                            <input
+                                                autoFocus
+                                                type="text"
+                                                name={`cybrush-seal-${Math.random()}`}
+                                                value={sealText}
+                                                onChange={(e) => onSealTextChange(e.target.value.toUpperCase().slice(0, 4))}
+                                                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                                                onBlur={() => setIsEditingSeal(false)}
+                                                autoComplete="off"
+                                                autoCorrect="off"
+                                                autoCapitalize="characters"
+                                                spellCheck="false"
+                                                inputMode="text"
+                                                data-lpignore="true"
+                                                style={{
+                                                    width: '50px',
+                                                    backgroundColor: 'rgba(0,0,0,0.1)',
+                                                    border: 'none',
+                                                    borderRadius: '4px',
+                                                    color: themeIconColor,
+                                                    fontSize: '12px',
+                                                    fontWeight: 'bold',
+                                                    textAlign: 'center',
+                                                    padding: '4px 0',
+                                                    outline: 'none',
+                                                    fontFamily: '"Inter", sans-serif'
+                                                }}
+                                                onTouchStart={e => e.stopPropagation()}
+                                            />
+                                        ) : (
+                                            <div
+                                                onClick={() => setIsEditingSeal(true)}
+                                                style={{
+                                                    padding: '4px 10px',
+                                                    backgroundColor: 'rgba(0,0,0,0.05)',
+                                                    borderRadius: '4px',
+                                                    color: themeIconColor,
+                                                    fontSize: '12px',
+                                                    fontWeight: 'bold',
+                                                    cursor: 'pointer',
+                                                    minWidth: '30px',
+                                                    textAlign: 'center',
+                                                    fontFamily: '"Inter", sans-serif'
+                                                }}
+                                            >
+                                                {sealText}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                {showLabels && <div style={{ ...labelStyle(isDark), left: '50%', transform: 'translateX(-50%)' }}>{currentTool === 'SEAL' ? 'Seal Text' : 'Seal'}</div>}
+                            </div>
                         </div>
                         <div style={{ width: '1px', height: '24px', backgroundColor: themeBorder, flexShrink: 0 }} />
+
                         <div style={{ display: 'flex', gap: isNarrow ? '2px' : '6px', alignItems: 'center', flexShrink: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '2px', position: 'relative' }}>
                                 <BrushSizeIcon color={themeIconColor} />

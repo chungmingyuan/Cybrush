@@ -30,7 +30,12 @@ function StrokesView() {
     const [brushSize, setBrushSize] = useState(40)
     const [brushColor, setBrushColor] = useState('#111111')
     const [wetness, setWetness] = useState(60)
+    const [sealText, setSealText] = useState(() => localStorage.getItem('cybrush_seal_text') || 'CY')
     const canvasRef = useRef<CanvasRef>(null)
+
+    useEffect(() => {
+        localStorage.setItem('cybrush_seal_text', sealText)
+    }, [sealText])
 
     useEffect(() => {
         if (selectedPaper) {
@@ -55,6 +60,7 @@ function StrokesView() {
 
     const handleClear = () => {
         canvasRef.current?.clear()
+        setSealText('CY')
     }
 
     const handleDownload = () => {
@@ -80,6 +86,7 @@ function StrokesView() {
             if (shouldClear) {
                 localStorage.removeItem('cybrush_autosave')
                 canvasRef.current?.clear()
+                setSealText('CY')
             }
             setSelectedPaper(pendingPaper)
             setPendingPaper(null)
@@ -123,6 +130,7 @@ function StrokesView() {
                 brushSize={brushSize}
                 wetness={wetness}
                 brushColor={brushColor}
+                sealText={sealText}
             />
             {/* Watermark Overlay - Visible in UI, not in download */}
             <div style={{
@@ -151,6 +159,8 @@ function StrokesView() {
                 brushColor={brushColor}
                 onColorChange={setBrushColor}
                 isDark={isDarkPaper}
+                sealText={sealText}
+                onSealTextChange={setSealText}
             />
         </div>
     )
