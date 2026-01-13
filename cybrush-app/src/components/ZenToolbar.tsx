@@ -326,12 +326,13 @@ const ZenToolbar: React.FC<ZenToolbarProps> = ({
                                                 type="text"
                                                 name={`cybrush-seal-${Math.random()}`}
                                                 value={sealText}
-                                                onChange={(e) => onSealTextChange(e.target.value.toUpperCase().slice(0, 4))}
+                                                maxLength={4}
+                                                onChange={(e) => onSealTextChange(e.target.value)}
                                                 onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
                                                 onBlur={() => setIsEditingSeal(false)}
                                                 autoComplete="off"
                                                 autoCorrect="off"
-                                                autoCapitalize="characters"
+                                                autoCapitalize="off"
                                                 spellCheck="false"
                                                 inputMode="text"
                                                 data-lpignore="true"
@@ -348,7 +349,8 @@ const ZenToolbar: React.FC<ZenToolbarProps> = ({
                                                     outline: 'none',
                                                     fontFamily: '"Inter", sans-serif',
                                                     transform: 'scale(0.75)',
-                                                    transformOrigin: 'center'
+                                                    transformOrigin: 'center',
+                                                    textTransform: 'uppercase'
                                                 }}
                                                 onTouchStart={e => e.stopPropagation()}
                                             />
