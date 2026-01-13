@@ -324,18 +324,13 @@ const ZenToolbar: React.FC<ZenToolbarProps> = ({
                                             <input
                                                 autoFocus
                                                 type="text"
-                                                name={`cybrush-seal-${Math.random()}`}
                                                 value={sealText}
                                                 maxLength={4}
                                                 onChange={(e) => onSealTextChange(e.target.value)}
                                                 onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
                                                 onBlur={() => setIsEditingSeal(false)}
-                                                autoComplete="off"
-                                                autoCorrect="off"
                                                 autoCapitalize="off"
                                                 spellCheck="false"
-                                                inputMode="text"
-                                                data-lpignore="true"
                                                 style={{
                                                     width: '66px',
                                                     backgroundColor: 'rgba(0,0,0,0.1)',
