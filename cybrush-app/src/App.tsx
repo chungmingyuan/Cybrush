@@ -107,8 +107,23 @@ function StrokesView() {
         return brightness < 128
     })() : false
 
+    const [showClearModal, setShowClearModal] = useState(false)
+
     const handleClear = () => {
+        setShowClearModal(true)
+    }
+
+    const confirmClear = () => {
         canvasRef.current?.clear()
+        setShowClearModal(false)
+    }
+
+    const confirmExit = () => {
+        localStorage.removeItem('cybrush_paper_id')
+        setSelectedPaper(null)
+        setShowSelector(false)
+        setShowClearModal(false)
+        window.location.href = '/'
     }
 
     const handleDownload = () => {
@@ -213,6 +228,16 @@ function StrokesView() {
                 onLibraryUpdate={setSealLibrary}
                 isDark={isDarkPaper}
             />
+            {showClearModal && (
+                <ZenModal
+                    title="Start Over"
+                    message="Would you like to clear the ink or exit to the main menu?"
+                    onConfirm={confirmClear}
+                    onCancel={confirmExit}
+                    confirmLabel="Clear Ink Only"
+                    cancelLabel="Exit to Home"
+                />
+            )}
         </div>
     )
 }
