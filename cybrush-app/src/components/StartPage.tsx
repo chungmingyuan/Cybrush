@@ -55,6 +55,11 @@ const StartPage: React.FC = () => {
                     >
                         CyBrush
                     </span>
+                    <img
+                        src="/logo-chinese-transparent.png"
+                        alt="Chinese Logo"
+                        className="h-8 md:h-12 ml-2 object-contain"
+                    />
                 </div>
 
                 <div className="hidden sm:flex flex-col items-end">
