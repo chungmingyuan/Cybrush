@@ -42,12 +42,12 @@ const StartPage: React.FC = () => {
 
             {/* Navigation */}
             <nav className="flex items-center justify-between px-6 py-4 md:px-10 md:py-6 w-full max-w-5xl relative z-10 shrink-0">
-                <div className="flex items-center gap-3 md:gap-4">
-                    <div className="w-8 h-8 md:w-12 md:h-12 bg-[#D4AF37] text-black rounded-sm flex items-center justify-center rotate-45 shadow-[0_0_20px_rgba(212,175,55,0.3)] shrink-0">
-                        <Brush className="w-5 h-5 md:w-8 md:h-8 -rotate-45" />
+                <div className="flex items-center gap-4 md:gap-6">
+                    <div className="w-10 h-10 md:w-16 md:h-16 bg-[#D4AF37] text-black rounded-sm flex items-center justify-center rotate-45 shadow-[0_0_30px_rgba(212,175,55,0.4)] shrink-0">
+                        <Brush className="w-6 h-6 md:w-10 md:h-10 -rotate-45" />
                     </div>
                     <span
-                        className="leading-none pt-1 md:pt-2 text-3xl md:text-5xl tracking-[1px] text-[#D4AF37]"
+                        className="leading-none pt-1 md:pt-2 text-5xl md:text-7xl tracking-[1px] text-[#D4AF37]"
                         style={{
                             fontFamily: "'Zhi Mang Xing', cursive",
                             textShadow: '0 4px 15px rgba(0, 0, 0, 0.8)'
@@ -58,7 +58,7 @@ const StartPage: React.FC = () => {
                     <img
                         src="/logo-chinese-transparent.png"
                         alt="Chinese Logo"
-                        className="h-8 md:h-12 ml-2 object-contain"
+                        className="h-14 md:h-24 ml-4 object-contain"
                     />
                 </div>
 
