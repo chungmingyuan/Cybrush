@@ -21,6 +21,7 @@ export interface CanvasRef {
 const MAX_HISTORY = 40
 const STORAGE_KEY = 'cybrush_autosave'
 
+
 const hexToRgb = (hex: string) => {
     if (!hex.startsWith('#')) return hex
     const r = parseInt(hex.slice(1, 3), 16)
@@ -254,8 +255,13 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
             return [{ s: 1 + 3.5 * w, a: 0.005 * w }, { s: 1 + 2.2 * w, a: 0.015 * w }, { s: 1 + 1.4 * w, a: 0.04 * w }, { s: 1 + 0.8 * w, a: 0.08 * w }, { s: 1, a: 0.2 }, { s: 0.8, a: 0.35 }, { s: 0.6, a: 0.55 }, { s: 0.4, a: 0.75 }, { s: 0.2, a: 0.95 }].filter(p => p.a > 0)
         }
 
+        const getPressureWidth = (force: number) => {
+            const p = Math.pow(force || 0.5, 1.3)
+            return p * sizeRef.current
+        }
+
         const drawCurveSegment = (x1: number, y1: number, x2: number, y2: number, x3: number, y3: number, force: number) => {
-            const p = Math.pow(force || 0.5, 1.3); const baseSize = p * sizeRef.current
+            const baseSize = getPressureWidth(force)
             const rgb = colorRef.current.startsWith('#') ? hexToRgb(colorRef.current) : colorRef.current
             const passes = getPasses(wetnessRef.current)
             const xc = (x2 + x3) / 2; const yc = (y2 + y3) / 2
@@ -270,7 +276,7 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
         }
 
         const drawLineLast = (x: number, y: number, force: number) => {
-            const p = Math.pow(force || 0.5, 1.3); const baseSize = p * sizeRef.current
+            const baseSize = getPressureWidth(force)
             const rgb = colorRef.current.startsWith('#') ? hexToRgb(colorRef.current) : colorRef.current
             const passes = getPasses(wetnessRef.current)
             ctx.beginPath(); ctx.moveTo(lastXRef.current, lastYRef.current); ctx.lineTo(x, y)
@@ -281,6 +287,7 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
                 for (const pass of passes) { ctx.lineWidth = baseSize * pass.s; ctx.strokeStyle = `rgba(${rgb}, ${pass.a})`; ctx.stroke() }
             }
         }
+
 
         const onTouchStart = (e: TouchEvent) => {
             if (!e.touches[0]) return
@@ -336,7 +343,7 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
                 }
                 saveToStorage()
             } else {
-                const p = Math.pow((touch as any).force || 0.4, 1.3); const baseSize = (p * sizeRef.current) / 2
+                const baseSize = getPressureWidth(force) / 2
                 const rgb = colorRef.current.startsWith('#') ? hexToRgb(colorRef.current) : colorRef.current
                 const passes = getPasses(wetnessRef.current)
                 if (toolRef.current === 'ERA') {
@@ -380,8 +387,14 @@ const CanvasLayer = forwardRef<CanvasRef, CanvasLayerProps>(({ paper, tool, brus
                 pressureBufferRef.current.push(rawForce); pressureBufferRef.current.shift()
                 const avgForce = pressureBufferRef.current.reduce((a, b) => a + b, 0) / pressureBufferRef.current.length
                 const now = Date.now(); const dt = now - lastTimeRef.current
-                if (dt > 0) { lastVelocityRef.current = Math.sqrt(distSq) / dt }
+                let velocity = 0
+                if (dt > 0) {
+                    velocity = Math.sqrt(distSq) / dt
+                    lastVelocityRef.current = velocity
+                }
                 lastTimeRef.current = now
+
+
                 pointsRef.current.push({ x: worldX, y: worldY, p: avgForce })
                 while (pointsRef.current.length >= 3) {
                     const p2 = pointsRef.current[1]!; const p3 = pointsRef.current[2]!

@@ -161,7 +161,6 @@ function StrokesView() {
             <>
                 <PaperSelector
                     onSelect={handlePaperSelection}
-                    onCancel={selectedPaper ? () => setShowSelector(false) : undefined}
                 />
                 {pendingPaper && (
                     <ZenModal
