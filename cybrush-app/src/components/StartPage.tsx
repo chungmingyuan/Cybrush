@@ -156,28 +156,45 @@ const StartPage: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Right Side: Paper Preview */}
                     <div className="canvas-container flex justify-center relative scale-[0.6] sm:scale-75 md:scale-90 lg:scale-100 origin-center md:origin-right">
                         <div className="absolute inset-x-[-40px] inset-y-[-40px] bg-[#D4AF37]/5 blur-[80px] rounded-full"></div>
-                        <div className="relative z-20 p-[1px] bg-[#111] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.9)] transform rotate-1">
-                            <div
-                                className="bg-[#fdfbf7] border-[8px] md:border-[10px] aspect-[3/4] w-[240px] lg:w-[380px] flex items-center justify-center overflow-hidden relative"
-                                style={{
-                                    backgroundImage: 'url("https://www.transparenttextures.com/patterns/handmade-paper.png")',
-                                    borderColor: '#0a0a0a'
-                                }}
-                            >
-                                <img
-                                    src="https://upload.wikimedia.org/wikipedia/commons/3/39/%E6%B0%B8-calligraphic-order.gif"
-                                    alt="Yong Calligraphy Animation"
-                                    className="w-[110%] h-auto opacity-95 select-none transform translate-y-[-10px] mix-blend-multiply"
-                                />
 
+                        {/* Premium Museum Gallery Frame - Mahogany & Gold */}
+                        <div className="relative z-20 p-4 md:p-5 bg-[#2c1d1a] shadow-[0_80px_120px_-40px_rgba(0,0,0,1),0_0_40px_rgba(0,0,0,0.5)] border-t-[1.5px] border-white/20 border-l-[1.5px] border-white/10 transform rotate-1 hover:rotate-0 transition-all duration-1000 rounded-[2px] overflow-hidden group/frame">
+                            {/* Wood Grain Overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-tr from-black/40 via-transparent to-white/5 pointer-events-none" />
+                            <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(0,0,0,0.2) 2px, rgba(0,0,0,0.2) 4px)' }} />
+
+                            {/* Metallic Gold Inner Lip */}
+                            <div className="absolute inset-[3px] border-[1px] border-[#D4AF37]/40 pointer-events-none" />
+                            <div className="absolute inset-[4px] border-[2px] border-[#D4AF37] pointer-events-none rounded-sm"
+                                style={{
+                                    borderImage: 'linear-gradient(135deg, #f3d68a 0%, #D4AF37 50%, #8a642a 100%) 1',
+                                    boxShadow: '0 0 10px rgba(212, 175, 55, 0.2)'
+                                }}
+                            />
+
+                            {/* Silk Inner Matting */}
+                            <div className="bg-[#0a0a0a] p-1 shadow-2xl relative">
                                 <div
-                                    className="absolute bottom-[15px] right-[15px] md:bottom-[20px] md:right-[20px] lg:bottom-[30px] lg:right-[30px] w-[45px] h-[45px] lg:w-[70px] lg:h-[70px] border-[2px] lg:border-[3px] border-[#a81c1c] flex flex-col items-center justify-center text-[#a81c1c] font-black rotate-[-3deg] bg-[rgba(168,28,28,0.05)]"
+                                    className="bg-[#fdfbf7] aspect-[1/1.6] w-[200px] lg:w-[320px] flex items-center justify-center overflow-hidden relative"
+                                    style={{
+                                        backgroundImage: 'url("/antique-xuan.png")',
+                                        boxShadow: 'inset 0 0 40px rgba(0,0,0,0.15)'
+                                    }}
                                 >
-                                    <span className="text-[10px] lg:text-[16px] leading-[0.9]">CY</span>
-                                    <span className="text-[10px] lg:text-[16px] leading-[0.9]">BR</span>
+                                    <img
+                                        src="/shuaibi_pencil_ultimate.gif"
+                                        alt="Shuaibi Calligraphy Animation"
+                                        className="w-[100%] h-auto opacity-95 select-none transition-opacity duration-1000 mix-blend-multiply"
+                                    />
+
+                                    <div
+                                        className="absolute bottom-[15px] right-[15px] md:bottom-[20px] md:right-[20px] lg:bottom-[30px] lg:right-[30px] w-[45px] h-[45px] lg:w-[70px] lg:h-[70px] border-[2px] lg:border-[3px] border-[#a81c1c] flex flex-col items-center justify-center text-[#a81c1c] font-black rotate-[-3deg] bg-[rgba(168,28,28,0.05)] shadow-sm"
+                                    >
+                                        <span className="text-[10px] lg:text-[16px] leading-[0.9]">CY</span>
+                                        <span className="text-[10px] lg:text-[16px] leading-[0.9]">BR</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
