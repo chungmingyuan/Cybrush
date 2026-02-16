@@ -1,4 +1,4 @@
-from PIL import Image, ImageDraw, ImageFilter, ImageOps
+from PIL import Image, ImageDraw, ImageFilter, ImageOps, ImageEnhance
 import numpy as np
 
 def process_pencil():
@@ -6,9 +6,37 @@ def process_pencil():
         # Load source
         img = Image.open("apple_pencil_source.png").convert("RGBA")
         
-        # Create mask from brightness
+        # Desaturate to remove yellow tint (Apple Pencil is white/grey)
+        enhancer = ImageEnhance.Color(img)
+        img = enhancer.enhance(0.0) # 0.0 means full grayscale/no color
+        
+        # Capture the array for masking BEFORE we brighten the image
+        # This prevents the background from becoming bright enough to be selected by the mask
         arr = np.array(img)
-        # Calculate brightness
+        
+        # Custom contrast/brightness curve using a point function (LUT)
+        # This brightens the light greys (body) to white, while keeping dark greys (logo) visible
+        # Map: 0->0 (black stays black), 100->80 (dark grey stays somewhat dark), 150->255 (mid-grey becomes white)
+        def lut(x):
+            # Sigmoid-ish curve:
+            # Below 128 (dark): keep relatively dark (x*0.8)
+            # Above 128 (light): push quickly to 255
+            if x < 100:
+                return int(x * 0.9) 
+            elif x > 180:
+                return 255
+            else:
+                # Linear interpolation between 100->90 and 180->255
+                return int(90 + (x - 100) * (165 / 80))
+
+        # Apply LUT to each channel (since it's greyscale now, they are same)
+        # We need to split, apply, and merge or just apply to the image if composite
+        # Since enhance(0.0) makes it grayscale RGB (R=G=B), we can apply to L and convert back
+        gray = img.convert("L")
+        gray = gray.point(lut)
+        img = gray.convert("RGBA")
+        
+        # Calculate brightness for MASK from the original (darker/desaturated) array
         brightness = np.mean(arr[:, :, :3], axis=2)
         
         # Create alpha channel: 0 if dark, 255 if bright

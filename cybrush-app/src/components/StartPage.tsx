@@ -184,9 +184,9 @@ const StartPage: React.FC = () => {
                                     }}
                                 >
                                     <img
-                                        src="/shuaibi_pencil_ultimate.gif"
+                                        src="/shuaibi_vertical_ultimate_v2.gif"
                                         alt="Shuaibi Calligraphy Animation"
-                                        className="w-[100%] h-auto opacity-95 select-none transition-opacity duration-1000 mix-blend-multiply"
+                                        className="w-[100%] h-auto opacity-95 select-none transition-opacity duration-1000"
                                     />
 
                                     <div

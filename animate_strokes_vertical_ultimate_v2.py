@@ -146,12 +146,25 @@ def render_animation():
     shua_masks = [get_stroke_mask(s) for s in shua_strokes]
     bi_masks = [get_stroke_mask(s) for s in bi_strokes]
 
-    frames, ink_color = [], (0, 0, 0, 255)
-    canvas = Image.new("RGBA", (W, H), (255, 255, 255, 255))
+    frames, ink_color = [], (0, 0, 0, 255) # Black ink
+    
+    # LOAD PAPER TEXTURE & PREPARE CANVAS
+    paper_path = "cybrush-app/public/antique-xuan.png"
+    try:
+        paper_bg = Image.open(paper_path).convert("RGBA")
+        # Resize paper to fill the canvas (crop/fill)
+        paper_bg = ImageOps.fit(paper_bg, (W, H), method=Image.BICUBIC, bleed=0.0, centering=(0.5, 0.5))
+    except Exception as e:
+        print(f"Error loading paper {paper_path}: {e}")
+        # Fallback to white if paper fails
+        paper_bg = Image.new("RGBA", (W, H), (255, 255, 255, 255))
+
+    canvas = paper_bg.copy() # Start with clean paper
+    
     char_sequence = [(shua_strokes, shua_medians, shua_masks), (bi_strokes, bi_medians, bi_masks)]
     
     # INITIAL HOLD (BLANK PAPER)
-    blank_frame = Image.new("RGBA", (W, H), (255, 255, 255, 255))
+    blank_frame = canvas.copy()
     for _ in range(15): frames.append(blank_frame)
 
     for strokes, medians, masks in char_sequence:
@@ -162,8 +175,7 @@ def render_animation():
             
             # FRAME: TIP ARRIVAL
             tip_p_start = stroke_median[0]
-            arr_frame = Image.new("RGBA", (W, H), (255, 255, 255, 255))
-            arr_frame.paste(canvas, (0,0), canvas)
+            arr_frame = canvas.copy()
             paste_pos_start = (int(tip_p_start[0] - final_tip_x), int(tip_p_start[1] - final_tip_y))
             arr_frame.paste(rotated_tip, paste_pos_start, rotated_tip)
             frames.append(arr_frame)
@@ -172,37 +184,49 @@ def render_animation():
             for j in range(0, num_pts + 1, step):
                 limit = min(j, num_pts)
                 if limit > 0:
+                    # DRAW INK PERMANENTLY ONTO THE CANVAS (Paper + Old Ink)
                     brush_layer = Image.new("RGBA", (W, H), (0,0,0,0))
                     brush_draw = ImageDraw.Draw(brush_layer)
+                    
+                    # Draw only the NEW segment of the stroke to avoid redrawing everything?
+                    # Actually, the logic below draws the whole stroke so far (0..limit)
+                    # To be efficient and correct with opacity stacking (if any), we should be careful.
+                    # But since ink is solid black (alpha 255), redrawing is fine.
+                    
                     start_k = max(0, limit - step)
                     for k in range(start_k, limit):
                         p, r = stroke_median[k], 100
+                        # Draw black circle
                         brush_draw.ellipse([p[0]-r, p[1]-r, p[0]+r, p[1]+r], fill=ink_color)
-                    masked_release = Image.new("RGBA", (W, H), (0,0,0,0))
-                    masked_release.paste(brush_layer, (0,0), stroke_mask)
-                    canvas.paste(masked_release, (0,0), masked_release)
+                    
+                    # Apply mask to this brush layer
+                    masked_ink = Image.new("RGBA", (W, H), (0,0,0,0))
+                    masked_ink.paste(brush_layer, (0,0), stroke_mask)
+                    
+                    # COMPOSITE ink onto canvas
+                    # Using alpha_composite or paste with mask
+                    canvas.paste(masked_ink, (0,0), masked_ink)
                 
-                frame = Image.new("RGBA", (W, H), (255, 255, 255, 255))
-                frame.paste(canvas, (0,0), canvas)
+                # CREATE DISPLAY FRAME (Canvas + Pencil)
+                frame = canvas.copy()
                 tip_p = stroke_median[min(limit, num_pts - 1)]
                 paste_pos = (int(tip_p[0] - final_tip_x), int(tip_p[1] - final_tip_y))
                 frame.paste(rotated_tip, paste_pos, rotated_tip)
                 frames.append(frame)
                 if limit >= num_pts: break
             
-            # FRAME: TIP REMOVAL
-            rem_frame = Image.new("RGBA", (W, H), (255, 255, 255, 255))
-            rem_frame.paste(canvas, (0,0), canvas)
+            # FRAME: TIP REMOVAL (Just show canvas)
+            rem_frame = canvas.copy()
             frames.append(rem_frame)
 
     # FINAL HOLD
-    final_canvas_only = Image.new("RGBA", (W, H), (255, 255, 255, 255))
-    final_canvas_only.paste(canvas, (0,0), canvas)
+    final_canvas_only = canvas.copy()
     for _ in range(30): frames.append(final_canvas_only)
 
     if len(frames) > 400: frames = frames[::2]
+    # Save as standard GIF (no transparency needed as background is full paper)
     frames[0].save("shuaibi_vertical_ultimate_v2.gif", save_all=True, append_images=frames[1:], duration=45, loop=0)
-    print("Vertical Ultimate V2 animation saved with black ink on white bg.")
+    print("Vertical Ultimate V2 animation saved with black ink on ANTIQUE XUAN PAPER.")
 
 if __name__ == "__main__":
     render_animation()
